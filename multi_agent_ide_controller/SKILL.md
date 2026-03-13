@@ -1,34 +1,22 @@
 ---
 name: multi_agent_ide_controller
-description: Executable workflow skill for the full multi_agent_ide controller loop — polling, graph inspection, permission/interrupt resolution, and self-improvement. References multi_agent_ide_deploy, multi_agent_ide_api, multi_agent_ide_debug, and multi_agent_ide_validate_schema skills.
+description: Executable workflow skill for the full multi_agent_ide controller loop — polling, graph inspection, permission/interrupt resolution, and self-improvement. References multi_agent_ide_deploy, multi_agent_ide_api, multi_agent_ide_debug, and multi_agent_ide_contracts skills.
 ---
 
 **Load these companion skills before starting a controller session:**
 - `multi_agent_ide_deploy` — deploy/sync the application
 - `multi_agent_ide_api` — Swagger UI, endpoint reference, API best practices
 - `multi_agent_ide_debug` — log locations, error triage, debugging patterns
-- `multi_agent_ide_validate_schema` — schemas not available from OpenAPI (filter instruction contracts, resolution enums, internal shapes); validate before use, update if out of sync
+- `multi_agent_ide_contracts` — internal contract reference for types not in OpenAPI (Instruction sealed interface, resolution enums, propagation types, filter/transformer/propagator request shapes); validate before use, update if out of sync
 - `multi_agent_ide_ui_test` — (optional) only if you need TUI state inspection or UI-level actions
 
 ---
 
 ## Operating mode
-- This skill is a self-improving loop: each run should end with a short analysis of what failed/worked, followed by concrete changes for the next run.
-- Before starting, use `api_schema.py --level 3` to discover current request/response shapes from the live OpenAPI spec.
-- During/after each redeploy, poll roughly every 60 seconds and check emitted actions/events, permission requests, interrupt requests, and node errors.
-- During polling, maintain an in-memory workflow state model from emitted actions/events (active node(s), current phase, waits, pending permissions/interrupts, latest errors).
-- Rebuild/update that model at each ~60-second interval and explicitly evaluate run status: progressing, stalled, or failed.
-- Use `POST /api/ui/workflow-graph` as the primary source for this in-memory model, then drill into event listing / event detail as needed.
-- Treat `workflow-graph` as the authoritative blocked-state view. `metrics.pendingItems` and blocked/`WAITING_INPUT` nodes are the first place to look for permissions, interrupts, and reviews.
-- `send-message` (via `POST /api/ui/quick-actions`) only confirms the action was queued. Always re-check `workflow-graph` after every action before assuming the run resumed or advanced.
-- Default to event-driven monitoring via the in-memory workflow model; do not require log inspection on every poll.
-- If the run is stalled, regressing, or failing, then inspect the app log (`<project-root>/multi-agent-ide.log`) and increase event-detail / node-level resolution as needed.
-- If the run shows no meaningful progress for multiple polls (2-3 intervals), treat it as stalled and perform deeper investigation with event-detail + log correlation.
-- Every goal submission must include semantic tags that describe the kind of work being requested.
-- If an error is not immediately resolvable, perform systematic triage using both events and logs, then report:
-  - likely root cause,
-  - why it was not recoverable in-run,
-  - concrete changes to prevent recurrence.
+
+This skill is a self-improving loop. There are several workflow variants in `workflows/`, which are constantly refined and improved across sessions — see `workflows/reference.md` for the full index. The **standard workflow** (`workflows/standard_workflow.md`) is the best place to start; it covers the canonical step-by-step loop from deploy through polling and blocked-state resolution.
+
+> All detailed step-by-step operating instructions live in the workflow files. Follow them rather than re-deriving the loop from scratch each session.
 
 ## Propagator escalation: the most informative signal
 
@@ -46,7 +34,7 @@ The propagation event stream reveals:
 - `GET /api/propagations/items` — pending items needing resolution
 - `POST /api/propagations/items/{itemId}/resolve` — resolve escalations
 
-When an AI propagator escalates via `AskUserQuestionTool`, answer via `POST /api/interrupts/resolve` with structured choices in `resolutionNotes`. See `multi_agent_ide_validate_schema` for the full schema.
+When a propagator escalates via `AskUserQuestionTool`, resolve via `POST /api/interrupts/resolve`. The primary action is **acknowledgement** — confirm awareness of the escalated signal. The `resolutionNotes` field can carry additional context but is not expected to contain a structured response; the propagator is reporting an observation, not waiting for a command. See `multi_agent_ide_contracts` for the interrupt resolution types.
 
 ## Domain references (load first)
 
@@ -74,12 +62,14 @@ Read these before starting a controller session:
 
 ## Session identity model (critical for message targeting)
 
-- `ArtifactKey` is the universal hierarchical index for **everything**: agent sessions, messages, prompts, tool calls, stream deltas, and all other artifacts. Format: `ak:<ULID>/<ULID>/...`.
-- **Each agent gets its own unique key.** The orchestrator has one key, discovery orchestrator has a different one, each discovery agent has its own, etc.
-- **Recycled sessions**: When the workflow routes back to an agent (e.g. discovery orchestrator on `ROUTE_BACK`), that agent **reuses its own previous key** (same ACP session, conversation continues).
-- **New sessions**: Dispatched agents always get a new ArtifactKey because multiple can run in parallel per dispatch fan-out.
-- **Sending messages**: Use agent-level nodeIds from `ACTION_STARTED`, `NODE_ADDED`, or the `chatSessionId / agentNodeId` field from `CHAT_SESSION_CREATED` events. Never use `nodeId` from `CHAT_SESSION_CREATED` (that's the `messageParent` child), `NODE_STREAM_DELTA` (grandchild), or `ARTIFACT_EMITTED` child keys.
-- See `references/session_identity_model.md` for full hierarchy details and recycling rules.
+See `references/session_identity_model.md` for the full hierarchy, recycling rules, and message targeting guide.
+
+Key intuitions:
+- `ArtifactKey` is the universal hierarchical index for everything — sessions, messages, prompts, tool calls, stream deltas. Format: `ak:<ULID>/<ULID>/...`.
+- **Each agent gets its own unique key**, formed as a child of its parent: orchestrator is the root (`ak:ROOT`), discovery orchestrator is a child of that (`ak:ROOT/CHILD_A`), discovery dispatcher is a child of the discovery orchestrator (`ak:ROOT/CHILD_A/CHILD_B`), and so on down the hierarchy.
+- **Recycled sessions**: Orchestrators, collectors, dispatchers, review, merger, and context-manager agents **reuse their own previous key** when the workflow routes back to them (e.g. discovery orchestrator on `ROUTE_BACK`). The same ACP session continues — conversation history is preserved.
+- **Non-recycled (dispatched) agents**: Ticket agents, discovery agents, and planning agents always get a **new** ArtifactKey. These run as parallel dispatch subprocesses — multiple instances can exist simultaneously per fan-out, and it is ill-posed to recycle their sessions.
+- **Sending messages**: Use agent-level nodeIds from `ACTION_STARTED` or `NODE_ADDED` events, or the `chatSessionId / agentNodeId` field from `CHAT_SESSION_CREATED`. Never use the `nodeId` from `CHAT_SESSION_CREATED` (that is the `messageParent` child key, one level below the agent).
 
 ## Embabel action routing semantics (critical)
 
@@ -98,8 +88,12 @@ Read these before starting a controller session:
   - `traceHistory`, `listHistory`, `searchHistory`, `listMessageEvents`, `getHistoryItem`, `addHistoryNote`.
 - `BlackboardHistory` tracks repeated input types (`detectLoop`, threshold default `3`).
 - `handleStuck` caps context-manager recovery attempts (`MAX_STUCK_HANDLER_INVOCATIONS = 3`).
+- **Degenerate loop detection**: `DegenerateLoopPolicy` / `DefaultDegenerateLoopPolicy` monitors the `BlackboardHistory` action sequence for repeated node patterns. When the same node sequence repeats `REPETITION_THRESHOLD` times (default 6), it publishes a `NodeErrorEvent` and throws `DegenerateLoopException` to escalate the loop to the supervisor. This fires independently of context-manager routing — it is a circuit-breaker that prevents infinite regress.
+  - Source: `multi_agent_ide_java_parent/multi_agent_ide_lib/src/main/java/com/hayden/multiagentidelib/agent/DefaultDegenerateLoopPolicy.java`
 
 ## Prompt locations (for prompt evolution)
+
+See `references/prompt_architecture.md` for the full pipeline and contributor pattern.
 
 - Workflow templates: `multi_agent_ide_java_parent/multi_agent_ide/src/main/resources/prompts/workflow`
 - Root prompt resources: `multi_agent_ide_java_parent/multi_agent_ide/src/main/resources/prompts`
@@ -107,6 +101,8 @@ Read these before starting a controller session:
 - Library contributors: `multi_agent_ide_java_parent/multi_agent_ide_lib/src/main/java/com/hayden/multiagentidelib/prompt/contributor`
 - App contributors: `multi_agent_ide_java_parent/multi_agent_ide/src/main/java/com/hayden/multiagentide/prompt/contributor`
 - Prompt context decorators: `multi_agent_ide_java_parent/multi_agent_ide/src/main/java/com/hayden/multiagentide/agent/decorator/prompt`
+
+**Runtime prompt modification via filters and transformers**: Filters and transformers registered via the REST API (`/api/filters`, `/api/transformers`) are the lightweight mechanism for testing prompt changes without a redeploy. A transformer can reshape API responses seen by agents; a filter can suppress or modify events before they reach the prompt context. Use this as a fast experimental loop — register a transformer, run a goal, inspect results, iterate. Promote stable changes to actual contributor code. See `multi_agent_ide_api` for the registration endpoints and `multi_agent_ide_contracts` for the request shapes.
 
 ---
 

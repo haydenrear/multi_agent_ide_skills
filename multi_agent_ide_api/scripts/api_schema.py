@@ -2,14 +2,39 @@
 """
 api_schema.py — Progressive disclosure of the multi-agent-ide OpenAPI schema.
 
-Levels:
-  1  groups     — tag names only (default)
+Path hierarchy
+--------------
+Controller endpoints are organised under a common path prefix hierarchy:
+
+  /api/ui/*            — workflow graph, node events, quick-actions, event detail
+  /api/agents/*        — pause, stop, resume, prune, branch, delete, review
+  /api/permissions/*   — list pending, resolve, detail
+  /api/interrupts/*    — request, resolve, status, detail
+  /api/orchestrator/*  — start goal, onboarding runs
+  /api/propagations/*  — propagation items + records
+  /api/transformations/*— transformation records
+  /api/filters/*       — filter policy CRUD
+  /api/propagators/*   — propagator registration
+  /api/transformers/*  — transformer registration
+  /api/runs/*          — debug run lifecycle and timeline
+  /api/llm-debug/*     — extended debug UI (nodes, events, actions)
+
+Use --path to focus on any prefix in this hierarchy, e.g.:
+  --path /api/ui          → everything under /api/ui/
+  --path /api/permissions → just the permissions group
+
+Levels
+------
+  1  groups     — tag names + path prefixes seen under each tag (default)
   2  endpoints  — tag + method + path + summary for each operation
   3  detail     — endpoints + request/response schema shapes
   4  full       — raw /v3/api-docs JSON dump
 
 Usage:
-  python api_schema.py [--level 1|2|3|4] [--tag TAGNAME] [--base-url URL]
+  python api_schema.py [--level 1|2|3|4] [--tag TAGNAME] [--path /api/ui]
+                       [--base-url URL]
+
+  --path and --tag can both be provided; both filters apply (AND).
 
 Environment:
   MAI_DEBUG_BASE_URL — defaults to http://localhost:8080
@@ -94,23 +119,48 @@ def response_shape(op: dict[str, Any], components: dict[str, Any]) -> Any:
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
-def render_groups(docs: dict[str, Any]) -> dict[str, Any]:
-    tags = docs.get("tags", [])
-    if not tags:
-        # derive from operations
-        tag_names: set[str] = set()
-        for path_item in docs.get("paths", {}).values():
-            for op in path_item.values():
-                if isinstance(op, dict):
-                    for t in op.get("tags", []):
-                        tag_names.add(t)
-        return {"groups": sorted(tag_names)}
-    return {"groups": [t.get("name") for t in tags]}
+def path_matches(path: str, path_filter: str | None) -> bool:
+    """Return True if path starts with path_filter (normalised, case-insensitive)."""
+    if not path_filter:
+        return True
+    prefix = path_filter.rstrip("/")
+    p = path.rstrip("/")
+    return p == prefix or p.startswith(prefix + "/")
 
 
-def render_endpoints(docs: dict[str, Any], tag_filter: str | None) -> dict[str, Any]:
+def render_groups(docs: dict[str, Any], path_filter: str | None = None) -> dict[str, Any]:
+    """Level 1: tag names with the distinct path prefixes observed under each tag."""
+    tag_paths: dict[str, set[str]] = {}
+    for path, path_item in docs.get("paths", {}).items():
+        if not path_matches(path, path_filter):
+            continue
+        for op in path_item.values():
+            if not isinstance(op, dict):
+                continue
+            for tag in op.get("tags", ["(untagged)"]):
+                tag_paths.setdefault(tag, set()).add(path)
+
+    # fall back to declared tags if no paths matched (e.g. no path_filter applied)
+    declared = {t.get("name"): t.get("description", "") for t in docs.get("tags", [])}
+
+    groups = []
+    for tag in sorted(tag_paths):
+        paths = sorted(tag_paths[tag])
+        # derive common prefix for display
+        entry: dict[str, Any] = {"tag": tag}
+        if tag in declared and declared[tag]:
+            entry["description"] = declared[tag]
+        entry["paths"] = paths
+        groups.append(entry)
+    return {"groups": groups}
+
+
+def render_endpoints(docs: dict[str, Any], tag_filter: str | None,
+                     path_filter: str | None) -> dict[str, Any]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for path, path_item in docs.get("paths", {}).items():
+        if not path_matches(path, path_filter):
+            continue
         for method, op in path_item.items():
             if not isinstance(op, dict):
                 continue
@@ -126,10 +176,13 @@ def render_endpoints(docs: dict[str, Any], tag_filter: str | None) -> dict[str, 
     return {"endpoints": groups}
 
 
-def render_detail(docs: dict[str, Any], tag_filter: str | None) -> dict[str, Any]:
+def render_detail(docs: dict[str, Any], tag_filter: str | None,
+                  path_filter: str | None) -> dict[str, Any]:
     components = docs.get("components", {})
     groups: dict[str, list[dict[str, Any]]] = {}
     for path, path_item in docs.get("paths", {}).items():
+        if not path_matches(path, path_filter):
+            continue
         for method, op in path_item.items():
             if not isinstance(op, dict):
                 continue
@@ -137,24 +190,66 @@ def render_detail(docs: dict[str, Any], tag_filter: str | None) -> dict[str, Any
             for tag in tags:
                 if tag_filter and tag.lower() != tag_filter.lower():
                     continue
-                groups.setdefault(tag, []).append({
+                entry: dict[str, Any] = {
                     "method": method.upper(),
                     "path": path,
                     "summary": op.get("summary", ""),
-                    "request": body_shape(op, components),
-                    "response": response_shape(op, components),
-                })
+                }
+                desc = op.get("description", "")
+                if desc:
+                    entry["description"] = desc
+                params = op.get("parameters", [])
+                if params:
+                    entry["parameters"] = [
+                        {
+                            "name": p.get("name"),
+                            "in": p.get("in"),
+                            "required": p.get("required", False),
+                            "description": p.get("description", ""),
+                            "schema": schema_shape(p.get("schema")),
+                        }
+                        for p in params if isinstance(p, dict)
+                    ]
+                req = body_shape(op, components)
+                if req is not None:
+                    entry["request"] = req
+                resp = response_shape(op, components)
+                if resp is not None:
+                    entry["response"] = resp
+                groups.setdefault(tag, []).append(entry)
     return {"endpoints": groups}
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Progressive OpenAPI schema explorer")
+    parser = argparse.ArgumentParser(
+        description="Progressive OpenAPI schema explorer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Path hierarchy examples:
+  --path /api/ui              all UI endpoints (workflow-graph, events, quick-actions)
+  --path /api/permissions     permission listing and resolution
+  --path /api/interrupts      interrupt request, resolve, detail
+  --path /api/agents          pause/stop/resume/prune/branch/delete/review
+  --path /api/propagations    propagation items and records
+  --path /api/transformations transformation records
+  --path /api/filters         filter policy CRUD
+  --path /api/runs            debug run lifecycle and timeline
+  --path /api/orchestrator    goal start and onboarding runs
+
+Combine with --level for focused discovery:
+  --level 3 --path /api/ui            full shapes for all /api/ui/* endpoints
+  --level 2 --tag "Permissions"       endpoint list for the Permissions tag
+  --level 3 --path /api/ui --tag "Debug UI"  intersection of path + tag
+""",
+    )
     parser.add_argument("--level", type=int, default=1, choices=[1, 2, 3, 4],
                         help="Detail level: 1=groups, 2=endpoints, 3=detail, 4=full (default: 1)")
     parser.add_argument("--tag", default=None,
-                        help="Filter output to a single tag/group name (levels 2-3)")
+                        help="Filter output to a single tag/group name (case-insensitive, levels 2-3)")
+    parser.add_argument("--path", default=None,
+                        help="Filter to endpoints at or below this path prefix, e.g. /api/ui")
     parser.add_argument("--base-url", default=None,
                         help="Override base URL (default: MAI_DEBUG_BASE_URL or http://localhost:8080)")
     args = parser.parse_args()
@@ -162,11 +257,11 @@ def main() -> None:
     docs = fetch_api_docs(args.base_url)
 
     if args.level == 1:
-        output = render_groups(docs)
+        output = render_groups(docs, args.path)
     elif args.level == 2:
-        output = render_endpoints(docs, args.tag)
+        output = render_endpoints(docs, args.tag, args.path)
     elif args.level == 3:
-        output = render_detail(docs, args.tag)
+        output = render_detail(docs, args.tag, args.path)
     else:
         output = docs
 
