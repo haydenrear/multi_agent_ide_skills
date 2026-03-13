@@ -7,7 +7,7 @@ Use this skill to interact with the running `multi_agent_ide` application throug
 
 For UI-specific operations (TUI state inspection, UI actions), see `multi_agent_ide_ui_test` skill instead.
 
-For schemas not available from OpenAPI (filter instruction contracts, resolution type enums, internal serialized shapes), see `multi_agent_ide_validate_schema` skill.
+For schemas not available from OpenAPI (filter instruction contracts, resolution type enums, internal serialized shapes), see `multi_agent_ide_contracts` skill.
 
 ## Base URL
 - Default: `http://localhost:8080`
@@ -62,6 +62,13 @@ curl -X POST http://localhost:8080/api/ui/workflow-graph \
 
 ## API Endpoint Reference
 
+> **These tables are illustrative examples only.** Use `api_schema.py` as the authoritative discovery mechanism:
+> - `--level 1` — discover controller groups and path prefixes
+> - `--level 2 --path /api/<group>` — list all endpoints within a group
+> - `--level 3 --path /api/<group>` — get full request/response schemas for a group
+>
+> The tables below give a quick orientation, but the live schema from `api_schema.py` always takes precedence.
+
 ### Debug UI (tag: "Debug UI") — Primary controller operations
 
 | Method | Path | Operation |
@@ -105,7 +112,7 @@ curl -X POST http://localhost:8080/api/ui/workflow-graph \
 
 PROPAGATION events in the node event stream (via `/api/ui/nodes/events`) are the controller-facing source of truth for exact action request/result payloads. Use `/api/ui/nodes/events/detail` on PROPAGATION events to review full payloads before approving or rejecting escalations.
 
-When an AI propagator escalates via `AskUserQuestionTool`, it creates an interrupt. Answer it via `POST /api/interrupts/resolve` with structured choices in `resolutionNotes`.
+When an AI propagator escalates via `AskUserQuestionTool`, it creates an interrupt. Resolve via `POST /api/interrupts/resolve` — the primary action is acknowledgement. See `multi_agent_ide_contracts` for resolution type enums.
 
 ### Filters (tag: "Filter Policies")
 
@@ -155,4 +162,4 @@ Always check `GET /api/filters/attachables` first — it is the source of truth 
 - Poll events at ~60-second intervals; only drill into event-detail when `workflow-graph` shows stalled/error state.
 - `nodeId` scopes requests to that node and all descendant nodes.
 - For schema introspection, prefer `api_schema.py --level 3 --tag <TagName>` — it reflects the live deployed version.
-- For schemas not in OpenAPI (filter instruction contracts, resolution enums, internal serialized shapes), see `multi_agent_ide_validate_schema` skill.
+- For schemas not in OpenAPI (filter instruction contracts, resolution enums, internal serialized shapes), see `multi_agent_ide_contracts` skill.
