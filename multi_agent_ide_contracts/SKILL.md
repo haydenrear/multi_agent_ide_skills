@@ -1,6 +1,6 @@
 ---
-name: multi_agent_ide_validate_schema
-description: Centralized reference for API schemas that cannot be retrieved from OpenAPI — filter instruction contracts, resolution type enums, and internal shapes. Provides source provenance and validation instructions to keep schemas in sync.
+name: multi_agent_ide_contracts
+description: Internal contract reference for types that live below the OpenAPI surface — sealed interfaces, enums, serialized shapes, and resolution types. Each reference includes source provenance and must be kept in sync with the Java/Kotlin source.
 ---
 
 Use this skill to retrieve and validate schemas that are **not available from the OpenAPI/Swagger endpoint**. For all REST endpoint schemas (paths, request/response bodies), use the live Swagger UI at `http://localhost:8080/swagger-ui.html` or `api_schema.py` from the `multi_agent_ide_api` skill instead.
