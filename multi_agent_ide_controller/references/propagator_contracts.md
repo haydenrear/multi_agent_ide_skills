@@ -151,17 +151,18 @@ The model used is always the system default — custom model selection is not su
 
 ## Management Endpoints
 
-Use `api_schema.py` from the `multi_agent_ide_api` skill to discover the authoritative request/response shapes from the live application:
+Use `api_schema.py` from the `multi_agent_ide_api` skill. The discovery flow is progressive:
 
 ```bash
-# Find the propagator API group name
-python scripts/api_schema.py --level 1
+# Step 1: find what endpoints exist under /api/propagators
+python scripts/api_schema.py --level 1 --path /api/propagators
 
-# List all propagator endpoints
+# Step 2: list all endpoints under that path prefix
 python scripts/api_schema.py --level 2 --path /api/propagators
 
-# Get full request/response schemas for the propagator API
-python scripts/api_schema.py --level 3 --path /api/propagators
+# Step 3: get the full request/response schema for a specific endpoint
+#         discovered in step 2, e.g. /api/propagators/registrations
+python scripts/api_schema.py --level 3 --path /api/propagators/registrations
 ```
 
-The paths above are a starting point — use `--level 1` first if `/api/propagators` doesn't match, as the prefix may differ in the deployed version. The live schema always takes precedence over any hardcoded paths in this document.
+Start with `--level 1 --path /api/propagators` to confirm the path prefix matches the deployed version — if it returns nothing, broaden to `--level 1` with no path to find the right prefix. Once you have a specific endpoint path from `--level 2`, use `--level 3` scoped to that path to get its exact request/response schema before calling it.
