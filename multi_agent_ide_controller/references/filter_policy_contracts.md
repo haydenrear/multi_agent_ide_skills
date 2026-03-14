@@ -207,16 +207,16 @@ Discovery/inspection endpoints are unchanged:
 - `GET /api/filters/layers/{layerId}/policies`
 - `GET /api/filters/policies/{policyId}/layers/{layerId}/records/recent`
 
-When registering `executorType=AI`, support these optional fields in addition to `modelRef`, `promptTemplate`, and `timeoutMs`:
+When registering `executorType=AI`, the fields are:
 
-- `sessionMode`: `PER_INVOCATION` | `SAME_SESSION_FOR_ALL` | `SAME_SESSION_FOR_ACTION` | `SAME_SESSION_FOR_AGENT`
-- `sessionKeyOverride`: explicit session key override
-- `requestModelType` / `resultModelType`: `AgentModels` type hints for request/result context
-- `registrarPrompt`: optional registrar-authored guidance prompt passed into the AI filter template model
-- `includeAgentDecorators`: apply workflow prompt/tool/request/result decorators
-- `controllerModelRef` / `controllerPromptTemplate`: optional controller arbitration model/template
-- `outputSchema`: optional JSON object describing expected structured output schema
-- `configVersion`: optional version tag for tracking AI executor configuration changes
+| Field | Required | Description |
+|---|---|---|
+| `executorType` | **required** | Must be `"AI"` |
+| `registrarPrompt` | **required** | Guidance explaining the filter's purpose — what it should act on and why |
+| `sessionMode` | optional | `PER_INVOCATION` \| `SAME_SESSION_FOR_ALL` \| `SAME_SESSION_FOR_ACTION` \| `SAME_SESSION_FOR_AGENT` |
+| `configVersion` | optional | Version tag for tracking configuration changes |
+
+The model used is always the system default — custom model selection is not supported for AI filters.
 
 ### Execution flow
 
