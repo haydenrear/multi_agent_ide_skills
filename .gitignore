@@ -51,3 +51,4 @@ log.log
 .codex
 
 test_work
+__pycache__
