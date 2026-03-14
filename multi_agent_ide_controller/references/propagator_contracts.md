@@ -2,18 +2,98 @@
 
 ## Overview
 
-Propagators observe action requests and responses as they flow through the workflow agent graph. Unlike filters (which transform or remove data), propagators **emit events** — they do not modify the payload. The typical use case is escalating controller-relevant information to a human or another process for review and acknowledgement.
+Propagators observe payloads flowing through the workflow agent graph. Unlike filters (which transform or remove data), propagators **emit a notification** — they do not modify the payload. When an AI propagator decides that content warrants attention, it uses the `AskUserQuestionTool` to ask for acknowledgement. **The controller can only acknowledge.** There is no approval, rejection, feedback, or other action — just acknowledgement.
 
-An AI propagator intercepts the action payload, evaluates it against its `registrarPrompt`, and when it decides escalation is appropriate, uses the `AskUserQuestionTool` to push an acknowledgement request. Workflow execution pauses until the propagator interrupt is resolved.
+## Auto-registered OOD propagators (already running)
 
-## Propagator Match Points
+The system **automatically bootstraps an AI propagator for every action request and response** across all registered agent actions at startup. These default propagators already cover out-of-domain (OOD) and out-of-distribution (OOD) detection using the base `ai_propagator` template with a generic registrarPrompt:
 
-Propagators bind to layer actions via `matchOn`, which determines whether the propagator intercepts the action **request** or the action **response**.
+> "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads."
 
-| `matchOn` value | When it fires | Payload seen |
+The `ai_propagator.jinja` template already encodes this OOD stance — it instructs the model to escalate when the payload is out of domain for the current task, out of distribution relative to the surrounding workflow, unsafe, ambiguous, contradictory, or likely to require controller or human judgment.
+
+**When to register a custom propagator:** Only register a new propagator when you need something beyond the default OOD coverage — either:
+1. A **specific concern** not covered by the generic OOD prompt (provide a targeted `registrarPrompt`)
+2. A **different attach point** — prompt contributors, specific graph events, or a context surface rather than an action request/response
+
+Do not register a custom propagator that just repeats the default OOD prompt on an action request/response that is already auto-covered.
+
+## Interrupt Resolution
+
+When an AI propagator escalates, it calls `AskUserQuestionTool` with its reasoning and asks for acknowledgement. Workflow execution pauses. **The only resolution is acknowledgement** — the controller acknowledges the interrupt and workflow resumes. There is no structured response, no approval or rejection, no feedback channel back to the agent.
+
+## Propagator Attach Points
+
+Propagators can attach to more than just action requests and responses. Use the right attach point for the concern:
+
+| Attach point | `matchOn` value | Use when |
 |---|---|---|
-| `ACTION_REQUEST` | Before the action executes | The action's input request object |
-| `ACTION_RESPONSE` | After the action completes | The action's output result object |
+| Action request payload | `ACTION_REQUEST` | You want to observe what an agent is about to do |
+| Action response payload | `ACTION_RESPONSE` | You want to observe what an agent produced |
+| Prompt contributor output | `PROMPT_CONTRIBUTOR` | You want to monitor what context is being injected into an LLM call — e.g. detect looping, degenerate, or repetitive context |
+| Graph event | `GRAPH_EVENT` | You want to flag specific event types — e.g. repeated failures, unexpected state transitions |
+
+### Example: monitor a prompt contributor for looping behavior
+
+Register on a `CurationHistoryContextContributor` prompt contributor to detect when the curation history being injected into an LLM call shows signs of looping or degenerate repetition:
+
+```json
+{
+  "name": "curation-history-loop-detector",
+  "description": "Flags looping or degenerate curation history before it reaches the LLM",
+  "sourcePath": "custom://propagator/prompt/curation-history-loop",
+  "propagatorKind": "AI_TEXT",
+  "priority": 100,
+  "activate": true,
+  "layerBindings": [
+    {
+      "layerId": "workflow-agent",
+      "matchOn": "PROMPT_CONTRIBUTOR",
+      "enabled": true,
+      "includeDescendants": true,
+      "matcherKey": "NAME",
+      "matcherType": "REGEX",
+      "matcherText": "curation-history.*"
+    }
+  ],
+  "executor": {
+    "executorType": "AI_PROPAGATOR",
+    "sessionMode": "SAME_SESSION_FOR_ACTION",
+    "registrarPrompt": "Flag if the curation history shows repeated identical phases, the same agent cycling without progress, or a degenerate loop pattern. The default OOD check already runs on action payloads — this prompt contributor propagator is specifically watching for loop/regression indicators in the injected context."
+  }
+}
+```
+
+### Example: monitor specific graph events
+
+Register on `PermissionRequestedEvent` or repeated `NODE_STATUS_CHANGED` events to let the LLM flag unexpected escalation patterns:
+
+```json
+{
+  "name": "permission-event-monitor",
+  "description": "Flags unexpected permission escalations during workflow execution",
+  "sourcePath": "custom://propagator/event/permission-escalation",
+  "propagatorKind": "AI_TEXT",
+  "priority": 100,
+  "activate": true,
+  "layerBindings": [
+    {
+      "layerId": "workflow-agent",
+      "matchOn": "GRAPH_EVENT",
+      "enabled": true,
+      "includeDescendants": true,
+      "matcherKey": "NAME",
+      "matcherType": "REGEX",
+      "matcherText": "PermissionRequestedEvent"
+    }
+  ],
+  "executor": {
+    "executorType": "AI_PROPAGATOR",
+    "sessionMode": "SAME_SESSION_FOR_ACTION",
+    "registrarPrompt": "This propagator fires on permission request events. Flag any permission escalation that looks unusual for the current workflow phase — unexpected tool requests, permission requests outside the normal execution path, or a sudden burst of permission requests that may indicate runaway agent behavior."
+  }
+}
+```
 
 ## AI Propagator Registration
 
@@ -32,15 +112,15 @@ Registration endpoint:
 | `activate` | optional | `true` to activate immediately (default: `false`) |
 | `isInheritable` | optional | Allow propagation to descendant layers |
 | `isPropagatedToParent` | optional | Allow propagation to parent layer |
-| `layerBindings` | **required** | Array of layer binding objects (see below) |
-| `executor` | **required** | Executor configuration object (see below) |
+| `layerBindings` | **required** | Array of layer binding objects |
+| `executor` | **required** | Executor configuration object |
 
 ### AI executor fields (`executorType: "AI_PROPAGATOR"`)
 
 | Field | Required | Description |
 |---|---|---|
 | `executorType` | **required** | Must be `"AI_PROPAGATOR"` |
-| `registrarPrompt` | **required** | Guidance explaining what the propagator should escalate and why |
+| `registrarPrompt` | **required** | Specific guidance explaining what this propagator should look for and why — distinct from the default OOD concern already covered by auto-registered propagators |
 | `sessionMode` | optional | `PER_INVOCATION` \| `SAME_SESSION_FOR_ALL` \| `SAME_SESSION_FOR_ACTION` \| `SAME_SESSION_FOR_AGENT` |
 | `configVersion` | optional | Version tag for tracking configuration changes |
 
@@ -50,8 +130,8 @@ The model used is always the system default — custom model selection is not su
 
 | Field | Type | Allowed values | Description |
 |---|---|---|---|
-| `layerId` | string | any valid layer ID | Which layer action this binding targets |
-| `matchOn` | **enum** | `"ACTION_REQUEST"`, `"ACTION_RESPONSE"` | Whether to intercept the request or response side |
+| `layerId` | string | any valid layer ID | Which layer this binding targets |
+| `matchOn` | **enum** | `"ACTION_REQUEST"`, `"ACTION_RESPONSE"`, `"PROMPT_CONTRIBUTOR"`, `"GRAPH_EVENT"` | What surface to intercept |
 | `enabled` | boolean | `true`, `false` | Whether this binding is active |
 | `includeDescendants` | boolean | `true`, `false` | Apply to child layers too |
 | `isInheritable` | boolean | `true`, `false` | Allow one-shot propagation to descendant layers |
@@ -60,61 +140,14 @@ The model used is always the system default — custom model selection is not su
 | `matcherType` | **enum** | `"REGEX"`, `"EQUALS"` | How to compare `matcherText` |
 | `matcherText` | string | any string | Pattern or exact value to match |
 
-## Propagator Interrupt Resolution
-
-When an AI propagator decides to escalate, it raises an interrupt via `AskUserQuestionTool`. The controller polls for pending interrupts and the operator acknowledges or responds. The interrupt is resolved by sending an acknowledgement — no structured `resolutionNotes` object is required, just a plain acknowledgement.
-
-### `PropagationResolutionType` enum
-
-| Value | Meaning |
-|---|---|
-| `ACKNOWLEDGED` | Operator reviewed and acknowledged the escalation |
-| `APPROVED` | Operator approved the escalated action/payload |
-| `REJECTED` | Operator rejected the escalated action/payload |
-| `DISMISSED` | Operator dismissed without taking action |
-| `FEEDBACK` | Operator provided textual feedback back to the agent |
-
-## Example Registration
-
-```json
-{
-  "name": "out-of-domain-escalation",
-  "description": "Escalates requests that appear out-of-domain or out-of-distribution",
-  "sourcePath": "custom://ai-propagator/workflow-agent/coordinateWorkflow/request",
-  "propagatorKind": "AI_TEXT",
-  "priority": 100,
-  "activate": true,
-  "isInheritable": false,
-  "isPropagatedToParent": false,
-  "layerBindings": [
-    {
-      "layerId": "workflow-agent/coordinateWorkflow",
-      "matchOn": "ACTION_REQUEST",
-      "enabled": true,
-      "includeDescendants": false,
-      "isInheritable": false,
-      "isPropagatedToParent": false,
-      "matcherKey": "TEXT",
-      "matcherType": "REGEX",
-      "matcherText": "(?s).*"
-    }
-  ],
-  "executor": {
-    "executorType": "AI_PROPAGATOR",
-    "sessionMode": "SAME_SESSION_FOR_ACTION",
-    "registrarPrompt": "Escalate out-of-domain, out-of-distribution, or otherwise controller-relevant request and result payloads."
-  }
-}
-```
-
 ## Execution Flow
 
-1. An action fires at the bound layer (request or response side per `matchOn`).
+1. A payload arrives at the bound attach point (`ACTION_REQUEST`, `ACTION_RESPONSE`, `PROMPT_CONTRIBUTOR`, or `GRAPH_EVENT`).
 2. The propagator executor receives the payload as `AiPropagatorRequest`.
-3. `LlmRunner.runWithTemplate()` is called with the `propagation/ai_propagator` template, which includes the `registrarPrompt`, the payload text, and the full decorator chain (request, prompt-context, tool-context, result) keyed to agent `ai-propagator`.
-4. If the AI decides escalation is warranted, it calls `AskUserQuestionTool` which raises an interrupt.
+3. `LlmRunner.runWithTemplate()` is called with the `propagation/ai_propagator` template. The template receives the `registrarPrompt`, the payload, and upstream context. The full decorator chain (request, prompt-context, tool-context, result) is always applied.
+4. If the AI decides escalation is warranted, it calls `AskUserQuestionTool` with its reasoning and requests acknowledgement.
 5. Workflow execution pauses. The controller operator sees the interrupt in the pending interrupts list.
-6. The operator acknowledges the interrupt. Workflow resumes.
+6. The operator acknowledges. Workflow resumes.
 
 ## Management Endpoints
 
