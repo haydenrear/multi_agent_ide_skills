@@ -151,10 +151,17 @@ The model used is always the system default — custom model selection is not su
 
 ## Management Endpoints
 
-| Action | Method | Path |
-|---|---|---|
-| Register propagator | POST | `/api/propagators/registrations` |
-| Deactivate propagator | POST | `/api/propagators/registrations/{registrationId}/deactivate` |
-| Update layer binding | PUT | `/api/propagators/registrations/{registrationId}/layer-bindings` |
-| List registered propagators | GET | `/api/propagators/registrations` |
-| Read attachable targets | GET | `/api/propagators/attachable-targets` |
+Use `api_schema.py` from the `multi_agent_ide_api` skill to discover the authoritative request/response shapes from the live application:
+
+```bash
+# Find the propagator API group name
+python scripts/api_schema.py --level 1
+
+# List all propagator endpoints
+python scripts/api_schema.py --level 2 --path /api/propagators
+
+# Get full request/response schemas for the propagator API
+python scripts/api_schema.py --level 3 --path /api/propagators
+```
+
+The paths above are a starting point — use `--level 1` first if `/api/propagators` doesn't match, as the prefix may differ in the deployed version. The live schema always takes precedence over any hardcoded paths in this document.
