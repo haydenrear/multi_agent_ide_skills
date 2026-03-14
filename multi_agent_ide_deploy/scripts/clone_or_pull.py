@@ -36,6 +36,9 @@ TMP_BASE = Path("/private/tmp/multi_agent_ide_parent")
 TMP_REPO_FILE = TMP_BASE / "tmp_repo.txt"
 DEFAULT_BRANCH = "main"
 
+# Script lives at <source_root>/skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/
+SOURCE_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -84,8 +87,11 @@ def phase1_clone(repo_url: str, dry_run: bool) -> dict:
     run(["git", "submodule", "foreach", "--recursive", "git reset --hard || true"],
         cwd=str(target), check=False)
 
+    # switch each submodule to the branch checked out in the source repo
+    branch_result = checkout_source_branches(SOURCE_ROOT, target)
+
     write_tmp_repo(target)
-    return {"phase": "clone", "ok": True, "path": str(target)}
+    return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result}
 
 
 def phase1_sync(repo_path: Path, dry_run: bool) -> dict:
@@ -117,9 +123,12 @@ def phase1_sync(repo_path: Path, dry_run: bool) -> dict:
     git(["submodule", "foreach", "--recursive", "git reset --hard || true"],
         cwd=cwd, check=False)
 
+    # switch each submodule to the branch checked out in the source repo
+    branch_result = checkout_source_branches(SOURCE_ROOT, repo_path)
+
     if errors:
-        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path)}
-    return {"phase": "sync", "ok": True, "path": str(repo_path)}
+        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path), "branches": branch_result}
+    return {"phase": "sync", "ok": True, "path": str(repo_path), "branches": branch_result}
 
 
 # ── phase 2: verification gate ────────────────────────────────────────────────
@@ -129,9 +138,39 @@ def get_sha(cwd: str) -> str | None:
     return r.stdout.strip() if r.returncode == 0 else None
 
 
+def get_branch(cwd: str) -> str | None:
+    """Return the current branch name, or None if detached HEAD."""
+    r = run(["git", "symbolic-ref", "--short", "HEAD"], cwd=cwd, check=False)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
 def is_detached(cwd: str) -> bool:
-    r = run(["git", "symbolic-ref", "--quiet", "HEAD"], cwd=cwd, check=False)
-    return r.returncode != 0
+    return get_branch(cwd) is None
+
+
+def checkout_source_branches(source_root: Path, tmp_path: Path) -> dict:
+    """For each submodule, read the branch checked out in the source repo and
+    switch the corresponding submodule in the tmp clone to that branch."""
+    r = run(["git", "submodule", "foreach", "--recursive", "--quiet", "echo $displaypath"],
+            cwd=str(source_root), check=False)
+    submodule_paths = [p.strip() for p in r.stdout.splitlines() if p.strip()]
+
+    switched, failed = [], []
+    for sub in submodule_paths:
+        source_sub = source_root / sub
+        tmp_sub = tmp_path / sub
+        if not source_sub.exists() or not tmp_sub.exists():
+            continue
+        branch = get_branch(str(source_sub))
+        if not branch:
+            continue  # source is also detached — nothing to switch to
+        r2 = run(["git", "switch", branch], cwd=str(tmp_sub), check=False)
+        if r2.returncode == 0:
+            switched.append(f"{sub}→{branch}")
+        else:
+            failed.append(f"{sub}: {r2.stderr.strip()}")
+
+    return {"switched": switched, "failed": failed}
 
 
 def has_dirty_files(cwd: str) -> bool:
