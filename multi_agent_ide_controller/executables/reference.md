@@ -4,4 +4,6 @@ Scripts in this directory are written and maintained by the controller during se
 
 | Script | Description |
 |--------|-------------|
-<!-- Add entries as scripts are created -->
+| `poll.py <nodeId>` | One-shot combined view: workflow graph shape + latest propagation items + pending permissions with tool detail. Primary polling command. |
+| `permissions.py` | List all pending permissions with full tool name and rawInput. Use `--resolve` to approve all after inspection, `--option REJECT_ONCE` to reject. |
+| `propagation_detail.py <nodeId>` | Full propagation payload detail with parsed JSON. Shows goal, output, agentResult, collectorDecision etc. Use `--raw` for full JSON. |

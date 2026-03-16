@@ -75,22 +75,27 @@ curl -X POST http://localhost:8080/api/ui/workflow-graph \
 ```
 Run immediately after `start-goal`, after every `send-message` / action, and after every permission/interrupt resolution. Use `workflow-graph` first to decide if the run is progressing, waiting on input, or stalled.
 
-### Step 5 — Validate alignment via propagation items (on progress detected)
+### Step 5 — Validate alignment via propagation items (after each agent completes)
 
-**When to run:** whenever `workflow-graph` shows progress (new `chatMessageEvents`, `toolEvents`, or completed nodes since the last poll).
+**When to run:** whenever `workflow-graph` shows a node has completed (new ACTION_COMPLETED events, or new child nodes since the last poll). This fires per-agent — check after each agent finishes, not just on any event growth. Propagators fire at action request/response boundaries, so items reflect what each agent was asked to do and what it decided.
 
-The controller's job is not only to confirm the workflow completes — it is to **intermittently verify that the work being done aligns with the goal**, and interrupt when it does not.
+The controller's job is not only to confirm the workflow completes — it is to **verify after each agent action that the work aligns with the goal**, and interrupt when it does not.
 
+Use `executables/poll.py` for a combined one-shot view, or call directly:
 ```bash
 curl -X POST http://localhost:8080/api/propagations/items/by-node \
   -H 'Content-Type: application/json' \
   -d '{"nodeId": "<nodeId>", "limit": 2}'
 ```
 
-Read the `propagatedText` field of each item — this is the full serialized action request or response payload that passed through the propagators. Assess whether the content reflects on-track progress toward the goal.
+Read the `propagatedText` field of each item — this is the full serialized action request or response payload that passed through the propagators. Key fields to check:
+- `goal` — confirms the agent received the right task
+- `agentResult` / `output` — what the agent decided or produced
+- `delegationRationale` — why work was dispatched the way it was
+- `collectorDecision.decisionType` — ADVANCE_PHASE / ROUTE_BACK / STOP
 
 **Decision tree:**
-- **On-track** → continue to Step 6 (poll events) for detail if needed, or skip directly to Step 9 (continue polling).
+- **On-track** → continue to Step 6 (poll events) for detail if needed, or skip directly to Step 10 (continue polling).
 - **Off-track or concerning** → go to Step 8 (apply action / send message) to steer or interrupt before continuing.
 - **No items returned** → propagators have not fired yet for this node (early in run, or no propagators registered for this layer). Continue to Step 6.
 
@@ -127,17 +132,20 @@ Check `workflow-graph` for non-empty `pendingItems` first.
 
 **PERMISSION blocked:**
 ```bash
-# List pending permissions
+# List pending permissions (shows requestId, nodeId, toolCallId)
 curl http://localhost:8080/api/permissions/pending
 
-# Get detail (by id or node scope)
+# Get full detail — response has: requestId, nodeId, toolCallId, permissions, toolCalls[]
+# toolCalls[].title = tool name, toolCalls[].rawInput = what the agent wants to do
 curl "http://localhost:8080/api/permissions/detail?id=<requestId-or-nodeScope>"
 
-# Review content before approving — if unusual, ask before resolving
+# Review toolCalls[].rawInput before approving. Use executables/permissions.py for readable output.
 curl -X POST http://localhost:8080/api/permissions/resolve \
   -H 'Content-Type: application/json' \
   -d '{"id": "<id>", "optionType": "ALLOW_ALWAYS"}'
 ```
+
+Use `executables/permissions.py` to inspect and batch-resolve permissions in one step.
 
 **INTERRUPT/REVIEW blocked:**
 ```bash

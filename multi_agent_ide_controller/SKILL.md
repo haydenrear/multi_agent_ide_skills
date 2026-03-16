@@ -12,6 +12,21 @@ description: Executable workflow skill for the full multi_agent_ide controller l
 
 ---
 
+## Kill running goals before fixing bugs
+
+**When you discover a bug in a running workflow (wrong output, null fields, misrouted data), kill the goal immediately before investigating or fixing:**
+
+```bash
+# Kill the running app to stop spending money on a broken run
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/deploy_restart.py --kill-only
+# OR: send SIGTERM directly using the PID file
+kill $(cat /private/tmp/multi_agent_ide_parent/multi_agent_ide.pid)
+```
+
+Do not let the agent continue running while you diagnose — every LLM call costs money and produces output you will not use. Fix the code, redeploy, and start a fresh goal.
+
+---
+
 ## Operating mode
 
 This skill is a self-improving loop. There are several workflow variants in `workflows/`, which are constantly refined and improved across sessions — see `workflows/reference.md` for the full index. The **standard workflow** (`workflows/standard_workflow.md`) is the best place to start; it covers the canonical step-by-step loop from deploy through polling and blocked-state resolution.
