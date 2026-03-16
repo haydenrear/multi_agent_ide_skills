@@ -163,3 +163,18 @@ Always check `GET /api/filters/attachables` first — it is the source of truth 
 - `nodeId` scopes requests to that node and all descendant nodes.
 - For schema introspection, prefer `api_schema.py --level 3 --tag <TagName>` — it reflects the live deployed version.
 - For schemas not in OpenAPI (filter instruction contracts, resolution enums, internal serialized shapes), see `multi_agent_ide_contracts` skill.
+
+---
+
+## Reusable scripts (`scripts/`)
+
+**Before writing any inline API call or response-parsing code, check `scripts/` first.**
+
+The key script is `scripts/api_schema.py` — use it to discover the live OpenAPI schema at every level before constructing a new request. This is the source of truth for request/response shapes.
+
+### Workflow
+1. **Before writing inline curl/httpie one-offs for a task you'll repeat**, check if a script already exists in `scripts/`.
+2. **If a script exists**, use it. If it can be improved (better output formatting, additional flags, cleaner error handling), update it in place.
+3. **If no script exists for a repeated operation**, write one to `scripts/<descriptive-name>.py`. It should be self-contained, accept CLI args (`--host`, `--level`, `--path`, `--tag`), and print structured output.
+
+For scripts that interact with the running workflow (poll, permissions, propagation), see `multi_agent_ide_controller/executables/` — those are purpose-built for monitoring sessions.

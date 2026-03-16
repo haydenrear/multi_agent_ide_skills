@@ -112,3 +112,21 @@ Or use the `clone_or_pull.py` script which handles all three phases and prints t
 Do not use other branches unless explicitly asked. When pushing and pulling, always operate on `main` for all repositories and submodules.
 
 If the application fails to clone/worktree-branch after deploy, re-run the pre-deploy verification gate first. Detached HEAD or stale submodule SHAs are the most common cause of clone/branch errors.
+
+---
+
+## Reusable scripts (`scripts/`)
+
+**Before writing inline bash/shell one-offs for deploy operations, check `scripts/` first.**
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/clone_or_pull.py` | Three-phase deploy prep: clone/sync → verification gate → provision |
+| `scripts/deploy_restart.py` | Deploy and restart the application with health check |
+
+### Workflow
+1. **Before automating any deploy step** (cloning, syncing, health checking), check if a script already handles it.
+2. **If a matching script exists**, use it. If it can be improved (additional flags, better error output), update it.
+3. **If no match exists**, write a new script to `scripts/` — it should be self-contained, accept CLI args, and print structured output.
+
+These scripts are the accumulation of deployment knowledge across sessions. Each improvement makes future deploys faster and more reliable.
