@@ -174,11 +174,25 @@ For 60-minute acp-integration tests, increase sleep to 120 seconds.
 
 When you need to script over polled results, parse event payloads, transform workflow data, or automate any repeated controller operation, **write a Python executable to `executables/`** instead of using inline one-off code.
 
-### Workflow
+### RULE: No inline Python — always use `executables/`
+
+**Never write inline Python one-liners or shell heredocs** for controller operations. This includes polling, acknowledgement, propagation parsing, permission inspection, or any other API call.
+
+Instead:
 1. **Before writing a new script**, read `executables/reference.md` and check if an existing script already handles the task.
-2. **If a matching script exists**, use it. If it can be improved (better parsing, additional flags, cleaner output), update it in place.
-3. **If no match exists**, write the new script to `executables/<descriptive-name>.py`, then add a row to `executables/reference.md` with the script name and a short description.
-4. Scripts should be self-contained, accept CLI arguments, and print JSON or structured text to stdout.
+2. **If a matching script exists**, use it directly: `python skills/multi_agent_ide_skills/multi_agent_ide_controller/executables/<name>.py <args>`. If it can be improved (better parsing, additional flags, cleaner output), update it in place.
+3. **If no match exists**, write the new script to `executables/<descriptive-name>.py`, add a row to `executables/reference.md`, then invoke it from there.
+4. Scripts must be self-contained, accept CLI arguments, and print JSON or structured text to stdout.
+
+**Example — correct:**
+```bash
+python skills/multi_agent_ide_skills/multi_agent_ide_controller/executables/ack_propagations.py ak:01KK...
+```
+
+**Example — wrong (never do this):**
+```bash
+python3 -c "import urllib.request, json; ..."
+```
 
 This is part of the self-improvement loop — each session leaves behind better tooling for the next.
 

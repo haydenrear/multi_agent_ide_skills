@@ -53,12 +53,37 @@ def show_graph(node, depth=0):
 
 
 def summarize_payload(pt):
-    """Extract the most meaningful fields from a propagatedText JSON payload."""
+    """Extract the most meaningful fields from a propagatedText JSON payload.
+
+    Handles the Propagation record structure: {"llmOutput": "...", "propagationRequest": "{...}"}
+    as well as legacy flat payloads.
+    """
     if not pt:
         return "(empty)"
     try:
         d = json.loads(pt)
-        # Priority fields for understanding what the agent did
+        # New Propagation record structure: llmOutput + propagationRequest
+        if "llmOutput" in d or "propagationRequest" in d:
+            llm = d.get("llmOutput", "")
+            req_str = d.get("propagationRequest", "")
+            llm_summary = str(llm)[:200] if llm else "(no llm output)"
+            req_summary = ""
+            if req_str:
+                try:
+                    req = json.loads(req_str)
+                    # Pull a meaningful field from the nested request
+                    for key in ["goal", "delegationRationale", "output", "collectorDecision"]:
+                        v = req.get(key)
+                        if v:
+                            req_summary = f"  req.{key}: {str(v)[:150]}"
+                            break
+                    if not req_summary:
+                        active = [k for k, v in req.items() if v is not None]
+                        req_summary = f"  req.fields: {active[:6]}"
+                except Exception:
+                    req_summary = f"  req: {req_str[:100]}"
+            return f"llmOutput: {llm_summary}{chr(10) + '    ' + req_summary.strip() if req_summary else ''}"
+        # Legacy flat payload — priority fields
         for key in ["goal", "delegationRationale", "output", "collectorDecision", "mergeError"]:
             v = d.get(key)
             if v:
