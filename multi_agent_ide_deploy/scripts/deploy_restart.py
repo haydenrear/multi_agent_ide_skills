@@ -18,16 +18,12 @@ from _client import request_json
 from _result import failure, success
 
 
-def repo_root() -> Path:
-    # .../skills/multi_agent_ide_deploy/scripts/deploy_restart.py -> repo root
-    return Path(__file__).resolve().parents[3]
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Restart multi_agent_ide on port 8080, then wait for /actuator/health status UP"
     )
-    parser.add_argument("--project-root", default=str(repo_root()))
+    parser.add_argument("--project-root", default=None,
+                        help="Path to the cloned repo. Defaults to path stored in tmp_repo.txt.")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--wait-seconds", type=int, default=180)
     parser.add_argument("--health-url", default="http://localhost:8080/actuator/health")
@@ -408,9 +404,32 @@ def fetch_active_policies(
     return result
 
 
+def resolve_project_root(args: argparse.Namespace) -> Path:
+    if args.project_root:
+        return Path(args.project_root).resolve()
+    saved = load_tmp_repo()
+    if saved:
+        return Path(saved).resolve()
+    tmp_file = tmp_repo_file()
+    if not tmp_file.exists():
+        print(
+            f"ERROR: {tmp_file} does not exist. "
+            "Run clone_or_pull.py first to clone the repo and set tmp_repo.txt.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"ERROR: {tmp_file} exists but points to a missing directory. "
+            "Run clone_or_pull.py to re-clone the repo.",
+            file=sys.stderr,
+        )
+    sys.exit(1)
+
+
 def main() -> int:
     args = parse_args()
-    root = Path(args.project_root).resolve()
+    root = resolve_project_root(args)
+    args.project_root = str(root)  # ensure helpers that read args.project_root see the resolved path
     pid_file, root_log_file = runtime_paths(args)
     env, env_meta = runtime_environment(args.profile)
 

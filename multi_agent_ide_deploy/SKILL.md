@@ -8,7 +8,7 @@ Use this skill when you need to clone, sync, or restart the `multi_agent_ide` ap
 ## Tmp repo persistence
 - The deploy script saves the `--project-root` path to `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` on every successful deploy.
 - On subsequent runs, read this file to find the existing tmp repo instead of cloning a new one.
-- If `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` is missing or empty, clone a fresh tmp repo on `main` and let the first successful deploy persist the path.
+- If `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` is missing or empty, `deploy_restart.py` will **exit with an error** — run `clone_or_pull.py` first to clone and write this file.
 - To sync changes into the existing tmp repo, push from your source repo then pull in the tmp repo. Only clone fresh if the tmp repo is missing or corrupted.
 
 ## Script: `scripts/clone_or_pull.py`
@@ -70,7 +70,7 @@ python scripts/deploy_restart.py [--project-root <path>] [--profile claude|claud
 ```
 
 ### Options
-- `--project-root` — path to the cloned repo root (defaults to detected repo root from script location)
+- `--project-root` — path to the cloned repo root. **Defaults to the path stored in `tmp_repo.txt`**. If `tmp_repo.txt` is missing or points to a non-existent directory, the script exits with an error telling you to run `clone_or_pull.py` first.
 - `--profile` — Spring profile. Default: `claude`. Use `claudellama` for local Ollama/LLaMA.
 - `--wait-seconds` — health check wait timeout in seconds (default 180)
 - `--port` — application port (default 8080)
@@ -87,8 +87,7 @@ python scripts/deploy_restart.py [--project-root <path>] [--profile claude|claud
 - **ACP/LLM errors**: `<project-root>/multi_agent_ide_java_parent/multi_agent_ide/claude-agent-acp-errs.log`
 
 ### Important notes
-- Deploy from the **parent repo root** (the repo with `buildSrc` and root `settings.gradle.kts`) so Gradle resolves correctly.
-- If invoking from outside the repo, always pass `--project-root <path>`. Do not rely on the default when working across multiple local checkouts.
+- **Always deploy from the tmp repo**, not from your source checkout. Run `clone_or_pull.py` first — it writes `tmp_repo.txt` and `deploy_restart.py` reads it automatically.
 - The `multi_agent_ide_python_parent` submodule does not exist on GitHub — ignore its clone failure.
 - External `PYTHON`/`BINARY` filter executors use `filter.bins` as subprocess cwd. For tmp deployments this resolves to `<tmp-repo>/multi_agent_ide_java_parent/multi_agent_ide/bin`. Ensure this directory exists before deploying.
 
@@ -103,8 +102,8 @@ git add . && git commit -m "preparing" && git push origin main
 # 2. Clone/sync tmp repo and run verification gate
 python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py
 
-# 3. Deploy (use path returned from step 2)
-python skills/multi_agent_ide_deploy/scripts/deploy_restart.py --project-root <path-from-step-2>
+# 3. Deploy (reads tmp_repo.txt automatically — no --project-root needed)
+python skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudellama
 ```
 
 Or use the `clone_or_pull.py` script which handles all three phases and prints the next deploy command when run with `--skip-deploy`.
