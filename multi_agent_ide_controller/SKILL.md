@@ -5,10 +5,45 @@ description: Executable workflow skill for the full multi_agent_ide controller l
 
 **Load these companion skills before starting a controller session:**
 - `multi_agent_ide_deploy` — deploy/sync the application
-- `multi_agent_ide_api` — Swagger UI, endpoint reference, API best practices
-- `multi_agent_ide_debug` — log locations, error triage, debugging patterns
+- `multi_agent_ide_api` — **required for all API interaction**: use `scripts/api_schema.py` to discover endpoint shapes before every new curl call. Covers goal submission, propagator/filter/transformer registration, schema introspection. Never guess field names — always check the live schema first.
+- `multi_agent_ide_debug` — **required for all log searching**: use `executables/search_log.py` with named presets. Never grep log files directly.
 - `multi_agent_ide_contracts` — internal contract reference for types not in OpenAPI (Instruction sealed interface, resolution enums, propagation types, filter/transformer/propagator request shapes); validate before use, update if out of sync
 - `multi_agent_ide_ui_test` — (optional) only if you need TUI state inspection or UI-level actions
+
+---
+
+## API operations — always use multi_agent_ide_api for schema discovery
+
+Before constructing **any** API call, run `api_schema.py` from the `multi_agent_ide_api` skill to get the live request/response shape. Never guess field names.
+
+```bash
+# Discover all API groups
+python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py
+
+# Get endpoint list for a group
+python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py --level 2 --tag "Debug UI"
+
+# Get full request/response shapes for a group
+python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py --level 3 --tag "Propagators"
+```
+
+### Common controller operations and their endpoints
+
+| Operation | Method + Path | Schema source |
+|-----------|--------------|---------------|
+| **Submit a goal** | `POST /api/ui/goals/start` | `api_schema.py --level 3 --tag "Debug UI"` |
+| **Poll workflow graph** | `POST /api/ui/workflow-graph` | same |
+| **Send message to agent** | `POST /api/ui/quick-actions` | same |
+| **List propagator registrations** | `POST /api/propagators/registrations/by-layer` | `api_schema.py --level 3 --tag "Propagators"` |
+| **Register a propagator** | `POST /api/propagators/registrations` | same |
+| **List propagation records** | `GET /api/propagations/records` | `api_schema.py --level 3 --tag "Propagation Records"` |
+| **List pending propagation items** | `GET /api/propagations/items` | `api_schema.py --level 3 --tag "Propagation Items"` |
+| **List pending permissions** | `GET /api/permissions/pending` | `api_schema.py --level 3 --tag "Permissions"` |
+| **Resolve permission** | `POST /api/permissions/resolve` | same |
+| **List pending interrupts** | `GET /api/interrupts/pending` | `api_schema.py --level 3 --tag "Interrupts"` |
+| **Resolve interrupt** | `POST /api/interrupts/resolve` | same |
+
+> **IMPORTANT:** The paths above are best-effort references. Always verify against the live spec before use. If a call returns an unexpected response, run `api_schema.py --level 3` for that tag to get the current shape.
 
 ---
 

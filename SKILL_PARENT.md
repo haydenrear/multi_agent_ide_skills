@@ -6,12 +6,27 @@ This directory contains all controller skills for operating the `multi_agent_ide
 
 | Skill | Purpose |
 |-------|---------|
-| `multi_agent_ide_controller` | **Start here.** Full controller loop — polling, permission/interrupt resolution, propagation monitoring, self-improvement. References all other skills. |
+| `multi_agent_ide_controller` | **Start here.** Full controller loop — submitting goals, polling workflow graph, permission/interrupt resolution, propagation monitoring, self-improvement. **Use this skill for all goal submission and polling operations.** |
 | `multi_agent_ide_deploy` | Clone to `/private/tmp`, sync, deploy, verify, restart. Run before starting any session. |
-| `multi_agent_ide_api` | Swagger-first API interaction — OpenAPI schema discovery, endpoint reference, filter/propagator/transformer operations. |
-| `multi_agent_ide_debug` | Log locations, error triage, exception knowledge base, stall detection. |
+| `multi_agent_ide_api` | **Use this for all API interaction.** Swagger-first endpoint discovery via `scripts/api_schema.py`, OpenAPI schema inspection, propagator/filter/transformer registration. **Always use `api_schema.py` to discover endpoint shapes before constructing any curl call — never guess field names.** |
+| `multi_agent_ide_debug` | **Use this for all log searching.** Log locations, `search_log.py` presets (`errors`, `node`, `goal`, `permission`, `propagation`, `overflow`, `acp`), error triage, stall detection. **Never grep the log files directly — use `search_log.py`.** |
 | `multi_agent_ide_contracts` | Authoritative schemas not available from OpenAPI — `Instruction` sealed interface, resolution enums, propagation types, filter/matcher enums. |
 | `multi_agent_ide_ui_test` | TUI state inspection and UI-level actions. Rarely needed; load only when the controller skill tells you to. |
+
+## Skill responsibilities — who owns what
+
+This is the canonical ownership table. When in doubt about which skill to consult, check here first.
+
+| Task | Skill to use |
+|------|-------------|
+| Submit a goal (`/api/ui/goals/start`) | `multi_agent_ide_controller` (references `multi_agent_ide_api` for schema) |
+| Poll workflow graph | `multi_agent_ide_controller` → `executables/poll.py` |
+| Discover endpoint URL or request shape | `multi_agent_ide_api` → `scripts/api_schema.py` |
+| List or register propagators/filters/transformers | `multi_agent_ide_api` (schema discovery) + `multi_agent_ide_controller` (session scripting) |
+| Search runtime logs or build logs | `multi_agent_ide_debug` → `executables/search_log.py` |
+| Resolve permissions/interrupts | `multi_agent_ide_controller` → `executables/permissions.py` / `interrupts.py` |
+| Deploy or restart the app | `multi_agent_ide_deploy` → `scripts/deploy_restart.py` |
+| Look up internal type schemas | `multi_agent_ide_contracts` |
 
 ## Loading companion skills
 
