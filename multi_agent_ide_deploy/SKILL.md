@@ -5,6 +5,8 @@ description: Deploy skill for multi_agent_ide — clone or pull to /private/tmp,
 
 Use this skill when you need to clone, sync, or restart the `multi_agent_ide` application for a test or debug session.
 
+> **CRITICAL: Never run `deploy_restart.py` from the source checkout** (`~/IdeaProjects/multi_agent_ide_parent` or similar). Always deploy from the tmp repo (`/private/tmp/multi_agent_ide_parent/multi_agent_ide_parent`). The deploy flow is: push changes from source → pull in tmp repo → deploy from tmp repo.
+
 ## Tmp repo persistence
 - The deploy script saves the `--project-root` path to `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` on every successful deploy.
 - On subsequent runs, read this file to find the existing tmp repo instead of cloning a new one.
