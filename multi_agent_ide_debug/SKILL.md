@@ -17,43 +17,25 @@ Use this skill when the running `multi_agent_ide` application is behaving unexpe
 
 ## Log Search Best Practices
 
-### Searching the runtime log
+**Always use `executables/search_log.py` — do not write inline grep commands.**
+
 ```bash
-# Find recent errors
-grep -i "error\|exception\|failed" <project-root>/multi-agent-ide.log | tail -50
+EXEC=skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py
 
-# Find events for a specific node (use partial nodeId match)
-grep "ak:01KJ" <project-root>/multi-agent-ide.log | tail -50
-
-# Find goal completion events
-grep -i "GOAL_COMPLETED\|NODE_COMPLETED\|NODE_ERROR" <project-root>/multi-agent-ide.log | tail -30
-
-# Find permission/interrupt events
-grep -i "PERMISSION_REQUESTED\|INTERRUPT_REQUESTED\|NODE_REVIEW" <project-root>/multi-agent-ide.log | tail -20
-
-# Tail live during a run (use Ctrl-C to stop)
-tail -f <project-root>/multi-agent-ide.log
-
-# Find LLM/ACP call failures
-grep -i "error\|failed\|timeout" <project-root>/multi_agent_ide_java_parent/multi_agent_ide/claude-agent-acp-errs.log | tail -30
+python $EXEC errors                    # recent errors/exceptions
+python $EXEC node ak:01KK...           # events for a specific nodeId
+python $EXEC goal                      # goal/node completion events
+python $EXEC permission                # permission/interrupt events
+python $EXEC propagation               # propagation events
+python $EXEC overflow                  # DB column overflow errors
+python $EXEC acp                       # ACP/LLM call failures
+python $EXEC "your pattern here"       # raw grep pattern
+python $EXEC errors --follow           # tail live (Ctrl-C to stop)
+python $EXEC errors --build            # search Gradle build log instead
+python $EXEC errors --limit 100        # show more matches
 ```
 
-### Python log search script pattern
-When you need programmatic log analysis:
-```python
-import subprocess, re
-
-log_path = "<project-root>/multi-agent-ide.log"
-pattern = "NODE_ERROR|Exception"
-
-result = subprocess.run(
-    ["grep", "-n", "-i", pattern, log_path],
-    capture_output=True, text=True
-)
-lines = result.stdout.strip().split("\n")
-for line in lines[-50:]:  # last 50 matches
-    print(line)
-```
+The script resolves the project root automatically from `tmp_repo.txt`. See `executables/reference.md` for the full listing.
 
 ## Exception knowledge base
 
@@ -100,12 +82,13 @@ When `workflow-graph` shows `NODE_ERROR` events or stalled nodes:
 
 1. **Check runtime log first:**
    ```bash
-   grep -i "NODE_ERROR\|exception" <project-root>/multi-agent-ide.log | tail -30
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py errors
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py goal
    ```
 
 2. **Check ACP errors for LLM call failures:**
    ```bash
-   tail -50 <project-root>/multi_agent_ide_java_parent/multi_agent_ide/claude-agent-acp-errs.log
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py acp
    ```
 
 3. **Correlate with event detail:**
@@ -146,8 +129,8 @@ A run is stalled when:
 - No `pendingItems` are visible (not waiting for input — genuinely stuck).
 
 **Recovery steps:**
-1. Check last 100 lines of `multi-agent-ide.log` for exceptions.
-2. Check `claude-agent-acp-errs.log` for provider/credit failures.
+1. Check runtime log for exceptions: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py errors`
+2. Check ACP errors for provider/credit failures: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py acp`
 3. Run `event-detail` on the most recent event for the stuck node.
 4. If the agent is looping (same event type repeatedly), check `BlackboardHistory` loop detection — threshold is 3 repetitions.
 5. If unrecoverable: redeploy with `multi_agent_ide_deploy` skill, then restart goal.

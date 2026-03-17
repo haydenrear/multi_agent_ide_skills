@@ -40,11 +40,29 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 
 ### Where to look
 
-| Skill | Scripts location | What they do |
-|-------|-----------------|--------------|
-| `multi_agent_ide_controller` | `executables/` | Poll workflow state, inspect/resolve permissions, view propagation payloads |
-| `multi_agent_ide_api` | `scripts/` | Query OpenAPI schema, discover endpoints |
-| `multi_agent_ide_deploy` | `scripts/` | Clone/sync repo, deploy, restart |
-| `multi_agent_ide_debug` | `executables/` | Log analysis, error pattern search (add here as you go) |
+| Skill | Scripts location | Reference index | What they do |
+|-------|-----------------|-----------------|--------------|
+| `multi_agent_ide_controller` | `executables/` | `executables/reference.md` | Poll workflow state, inspect/resolve permissions, ack propagations, validate propagation record structure |
+| `multi_agent_ide_api` | `scripts/` | listed in SKILL.md | Query OpenAPI schema, discover endpoints |
+| `multi_agent_ide_deploy` | `scripts/` | listed in SKILL.md | Clone/sync repo, deploy, restart |
+| `multi_agent_ide_debug` | `executables/` | `executables/reference.md` | Log search with named presets (`errors`, `node`, `goal`, `permission`, `propagation`, `overflow`, `acp`) |
 
-> The most important executables right now are in `multi_agent_ide_controller/executables/`: `poll.py`, `permissions.py`, and `propagation_detail.py`. These are the primary tools for a monitoring session — use them instead of raw `curl` where possible.
+### Key executables — load these before any session
+
+**Controller monitoring** (`multi_agent_ide_controller/executables/`):
+- `poll.py <nodeId>` — combined one-shot view: graph + propagations + permissions. **Primary polling command.**
+- `permissions.py [--resolve]` — list and batch-resolve pending permissions with tool names and raw input.
+- `ack_propagations.py <nodeId>` — acknowledge all PENDING propagation items.
+- `validate_propagation.py <nodeId>` — verify propagatedText contains the Propagation record structure.
+- `propagation_detail.py <nodeId>` — full propagation payload with parsed JSON.
+
+**Debug / log search** (`multi_agent_ide_debug/executables/`):
+- `search_log.py errors` — recent errors and exceptions in the runtime log.
+- `search_log.py node <nodeId>` — all log lines for a specific node.
+- `search_log.py overflow` — DB column overflow errors.
+- `search_log.py acp` — ACP/LLM call failures.
+- `search_log.py --follow` — tail the runtime log live.
+
+### RULE: no inline scripts
+
+**Never write inline Python one-liners or ad-hoc grep commands** for any task covered by the above scripts. If the task is not covered, write a new script to `executables/` first, add a row to `reference.md`, then invoke it. This applies to every skill in this directory.

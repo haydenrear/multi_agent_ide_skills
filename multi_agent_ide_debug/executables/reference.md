@@ -4,4 +4,4 @@ Scripts in this directory are written and maintained during debug sessions. Befo
 
 | Script | Description |
 |--------|-------------|
-<!-- Add entries as scripts are created -->
+| `search_log.py [query]` | Search runtime or build logs with named presets. Presets: `errors` (default), `node <nodeId>`, `goal`, `permission`, `propagation`, `overflow`, `acp`. Pass any string for a raw grep. Use `--follow` to tail live. Use `--build` for the Gradle log. |
