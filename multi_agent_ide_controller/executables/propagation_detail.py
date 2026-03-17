@@ -123,11 +123,14 @@ def main():
     parser.add_argument("--limit", type=int, default=3)
     parser.add_argument("--fields", default=",".join(DEFAULT_FIELDS),
                         help="Comma-separated fields to show (default: goal,output,agentResult,...)")
+    parser.add_argument("--field", metavar="FIELD",
+                        help="Extract a single named field from propagationRequest and print its value only. "
+                             "Useful for scripting: --field goal, --field agentRequests, etc.")
     parser.add_argument("--raw", action="store_true", help="Print full JSON without field filtering")
     parser.add_argument("--host", default="http://localhost:8080")
     args = parser.parse_args()
 
-    fields = [f.strip() for f in args.fields.split(",")]
+    fields = [args.field] if args.field else [f.strip() for f in args.fields.split(",")]
     result = post(args.host, "/api/propagations/items/by-node",
                   {"nodeId": args.node_id, "limit": args.limit})
     if not result:

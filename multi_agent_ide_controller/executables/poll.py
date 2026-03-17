@@ -103,18 +103,11 @@ def summarize_payload(pt):
         return pt[:200]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Poll workflow status")
-    parser.add_argument("node_id", help="Workflow nodeId (ak:...)")
-    parser.add_argument("--limit", type=int, default=2, help="Propagation items to show (default 2)")
-    parser.add_argument("--host", default="http://localhost:8080", help="App base URL")
-    args = parser.parse_args()
-
-    host = args.host
-    node_id = args.node_id
-
+def poll_once(host, node_id, limit):
+    """Run a single poll cycle. Returns True if the run is terminally complete."""
     print(f"═══ WORKFLOW GRAPH  nodeId={node_id} ═══")
     graph = post(host, "/api/ui/workflow-graph", {"nodeId": node_id})
+    terminal = False
     if graph:
         s = graph["stats"]
         event_counts = s.get("eventTypeCounts") or {}
@@ -129,11 +122,12 @@ def main():
             show_graph(root)
         else:
             print("  (root not yet visible — run still initializing)")
+        terminal = bool(goal_done)
     print()
 
-    print(f"═══ PROPAGATION ITEMS  limit={args.limit} ═══")
+    print(f"═══ PROPAGATION ITEMS  limit={limit} ═══")
     prop = post(host, "/api/propagations/items/by-node",
-                {"nodeId": node_id, "limit": args.limit})
+                {"nodeId": node_id, "limit": limit})
     if prop:
         print(f"totalCount={prop['totalCount']}")
         for item in prop["items"]:
@@ -157,7 +151,6 @@ def main():
             rid = p["requestId"]
             node = p.get("nodeId", "?")
             print(f"  requestId={rid}  node=...{node[-30:]}")
-            # Fetch detail to show tool name and input
             detail = get(host, f"/api/permissions/detail?id={rid}")
             if detail:
                 for tc in (detail.get("toolCalls") or [])[:2]:
@@ -166,6 +159,7 @@ def main():
                     input_str = json.dumps(raw_in)[:200] if raw_in else "(no input)"
                     print(f"    tool={tool}")
                     print(f"    input={input_str}")
+            print(f"    → python permissions.py --resolve  (requestId={rid})")
     else:
         print("0 pending")
     print()
@@ -175,13 +169,48 @@ def main():
     if interrupts:
         print(f"{len(interrupts)} pending")
         for i in (interrupts if isinstance(interrupts, list) else []):
-            print(f"  interruptId={i.get('interruptId', '?')}  node=...{str(i.get('originNodeId',''))[-30:]}")
+            interrupt_id = i.get("interruptId", "?")
+            origin = str(i.get("originNodeId", ""))
+            print(f"  interruptId={interrupt_id}  node=...{origin[-30:]}")
             reason = i.get("reason") or i.get("message") or ""
             if reason:
                 print(f"    reason: {reason[:150]}")
-        print("  → run: interrupts.py <nodeId> --resolve APPROVED [--notes \"<choice>\"]")
+            print(f"    → python interrupts.py {node_id} --resolve APPROVED")
     else:
         print("0 pending")
+
+    return terminal
+
+
+def main():
+    import time
+    parser = argparse.ArgumentParser(description="Poll workflow status")
+    parser.add_argument("node_id", help="Workflow nodeId (ak:...)")
+    parser.add_argument("--limit", type=int, default=2, help="Propagation items to show (default 2)")
+    parser.add_argument("--host", default="http://localhost:8080", help="App base URL")
+    parser.add_argument("--watch", type=int, default=0, metavar="SECS",
+                        help="Poll every N seconds until GOAL_COMPLETED or Ctrl-C")
+    args = parser.parse_args()
+
+    host = args.host
+    node_id = args.node_id
+
+    if args.watch:
+        import time
+        interval = args.watch
+        print(f"Watching every {interval}s — Ctrl-C to stop\n")
+        try:
+            while True:
+                done = poll_once(host, node_id, args.limit)
+                if done:
+                    print(f"\n✓ GOAL_COMPLETED — stopping watch.")
+                    break
+                print(f"--- next poll in {interval}s ---\n")
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            print("\nWatch stopped.")
+    else:
+        poll_once(host, node_id, args.limit)
 
 
 if __name__ == "__main__":

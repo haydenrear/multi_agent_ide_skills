@@ -134,6 +134,8 @@ def main():
         options = p.get("permissions", [])
         option_names = [o.get("kind") for o in (options if isinstance(options, list) else [])]
         print(f"options   : {option_names}")
+        print(f"  → python permissions.py --resolve                   (ALLOW_ALWAYS all)")
+        print(f"  → python permissions.py --resolve --option REJECT_ONCE")
         to_resolve.append(rid)
 
     if args.resolve:
@@ -149,10 +151,6 @@ def main():
                                    {"id": rid, "optionType": args.option})
                 status = result.get("status", "?") if result else "ERROR"
                 print(f"  {rid} → {status}")
-    else:
-        print(f"\n{'─'*60}")
-        print(f"Run with --resolve to approve all as ALLOW_ALWAYS")
-        print(f"Run with --resolve --option REJECT_ONCE to reject")
 
 
 if __name__ == "__main__":
