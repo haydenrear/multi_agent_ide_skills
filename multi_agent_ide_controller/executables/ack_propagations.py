@@ -80,7 +80,7 @@ def main():
         layer = item.get("layerId", "").split("/")[-1]
         stage = item.get("stage", "?")
         res = post(host, f"/api/propagations/items/{item_id}/resolve",
-                   {"resolution": "ACKNOWLEDGED"})
+                   {"resolutionType": "ACKNOWLEDGED"})
         if res is not None:
             print(f"  ACK  itemId={item_id}  layer={layer}  stage={stage}")
             acked += 1
