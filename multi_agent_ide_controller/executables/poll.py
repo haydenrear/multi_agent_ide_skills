@@ -130,7 +130,7 @@ def poll_once(host, node_id, limit):
                 {"nodeId": node_id, "limit": limit})
     if prop:
         print(f"totalCount={prop['totalCount']}")
-        for item in prop["items"]:
+        for pos, item in enumerate(prop["items"], 1):
             stage = item.get("stage", "?")
             layer = item.get("layerId", "").split("/")[-1]
             status = item.get("status", "?")
@@ -142,7 +142,7 @@ def poll_once(host, node_id, limit):
             if summary:
                 print(f"    summary: {summary[:120]}")
             print(f"    {summarize_payload(pt_str)}")
-            print(f"    → python propagation_detail.py {node_id} --limit 1  (review full payload)")
+            print(f"    → python propagation_detail.py {node_id} --limit {pos}  (item #{pos} most recent — review full payload)")
     print()
 
     print("═══ PENDING PERMISSIONS ═══")
