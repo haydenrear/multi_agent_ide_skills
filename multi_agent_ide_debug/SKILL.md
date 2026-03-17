@@ -64,10 +64,11 @@ This file is not for exceptions to ignore — it's for understanding what common
 When you need to script log analysis, parse error patterns, correlate events, or automate any repeated debug operation, **write a Python executable to `executables/`** instead of using inline one-off code.
 
 ### Workflow
-1. **Before writing a new script**, read `executables/reference.md` and check if an existing script already handles the task.
-2. **If a matching script exists**, use it. If it can be improved (better parsing, additional flags, cleaner output), update it in place.
-3. **If no match exists**, write the new script to `executables/<descriptive-name>.py`, then add a row to `executables/reference.md` with the script name and a short description.
-4. Scripts should be self-contained, accept CLI arguments, and print JSON or structured text to stdout.
+1. **Read `executables/reference.md` first.** Check if an existing script already handles the task.
+2. **If a matching script exists**, use it. If it can be improved — new preset, better output, additional flag — update it in place and note the change in `reference.md`.
+3. **If no match exists**, write the new script to `executables/<descriptive-name>.py`, add a row to `executables/reference.md`, then use it.
+4. **Never write inline grep commands or one-off Python for log search.** If the existing scripts don't cover the need, that means a script is missing — add it.
+5. Scripts should be self-contained, accept CLI arguments, and print structured output to stdout.
 
 This is part of the self-improvement workflow — each debug session leaves behind better tooling for the next.
 
