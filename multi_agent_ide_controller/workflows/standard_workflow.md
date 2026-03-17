@@ -120,7 +120,7 @@ If any field looks wrong, **do not continue polling**. Go to Step 8 to steer bef
 **Decision tree:**
 - **On-track** → continue to Step 6 (poll events) for detail if needed, or skip directly to Step 10 (continue polling).
 - **Off-track, hallucination, or scope creep detected** → go to Step 8 (apply action / send message) to steer or interrupt before the next agent picks up the result.
-- **Phase violation** (e.g., discovery agent implemented code) → send a corrective message noting the violation; the workflow orchestrator may already have caught it, but confirm before proceeding.
+- **Phase violation** (e.g., discovery agent implemented code) → send a corrective message to the **specific agent's nodeId** (not the root orchestrator nodeId). Each agent has its own ACP session — a message to the root will not reach the agent. Get the agent nodeId from `poll.py`'s graph output (e.g., the `discovery-agent` node's id under the dispatch node) and use that in `SEND_MESSAGE`. The workflow orchestrator may already have caught the violation, but confirm before proceeding.
 - **No items returned** → propagators have not fired yet for this node (early in run, or no propagators registered for this layer). Continue to Step 6.
 
 > This endpoint returns items across all statuses (not just PENDING) ordered by recency, so it reflects the latest payload the propagator saw regardless of whether an escalation was raised.
@@ -140,12 +140,16 @@ curl -X POST http://localhost:8080/api/ui/nodes/events/detail \
 ```
 
 ### Step 8 — Apply action or send message
+
+**CRITICAL: Always target the specific agent nodeId, not the root.**
+Each agent (discovery-agent, ticket-agent, etc.) has its own ACP session. A message to the root orchestrator nodeId will not reach the running agent. Get the target nodeId from `poll.py`'s graph tree — it's the leaf node that is currently `RUNNING` or `WAITING_INPUT`.
+
 ```bash
 curl -X POST http://localhost:8080/api/ui/quick-actions \
   -H 'Content-Type: application/json' \
   -d '{
-    "action": "SEND_MESSAGE",
-    "nodeId": "<nodeId>",
+    "actionType": "SEND_MESSAGE",
+    "nodeId": "<specific-agent-nodeId-from-poll-graph>",
     "message": "<text>"
   }'
 ```
