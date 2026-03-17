@@ -20,18 +20,37 @@ git push origin main
 
 **1b. Sync or create tmp repo** — use `multi_agent_ide_deploy` skill for `clone_or_pull.py` which handles clone/sync with a 3-phase verification gate.
 
-Check `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` for existing clone. If it exists and is valid, sync it:
+Check `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` for existing clone. If it exists and is valid, sync it.
+
+There are two cases — **check which applies before running any commands**:
+
+**Case 1 — Fresh clone or no local changes in any submodule:**
+Use `git submodule` commands only when you know the working trees are clean (e.g., just after a first clone). These commands leave submodules in a detached HEAD state if run over an already-checked-out repo with local changes.
 ```bash
 TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt 2>/dev/null)
 cd "$TMP_REPO"
-git fetch origin main && git reset --hard origin/main
+git switch main
+git pull --ff-only origin main
+git submodule foreach --recursive 'git switch main || true'
+git submodule foreach --recursive 'git pull --ff-only origin main || true'
+git submodule foreach --recursive 'git reset --hard || true'
+```
 
-# IMPORTANT: git submodule update --recursive does NOT pull new commits for
-# skills/multi_agent_ide_skills. You must cd into each changed submodule and pull directly:
+**Case 2 — Repo already exists and submodules may have staged or local changes:**
+First check each submodule for changes before touching it. Do **not** use `git submodule` commands — they bypass branch tracking and leave detached HEADs. Instead, `cd` into each submodule that has upstream changes and pull directly:
+```bash
+TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt 2>/dev/null)
+cd "$TMP_REPO"
+
+# Check for staged/local changes before pulling — do not clobber agent work
+git status --short
+git submodule foreach --recursive 'git status --short || true'
+
+# For each submodule with upstream changes, cd in and pull:
 cd "$TMP_REPO/skills" && git checkout main && git pull origin main
 cd "$TMP_REPO/skills/multi_agent_ide_skills" && git checkout main && git pull origin main
 cd "$TMP_REPO/multi_agent_ide_java_parent" && git checkout main && git pull origin main
-# Add other submodules as needed for the specific change being synced
+# Only pull submodules that actually have changes — skip others
 ```
 
 **Pre-deploy verification gate (required, do not skip):**
