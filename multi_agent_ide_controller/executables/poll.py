@@ -134,13 +134,15 @@ def poll_once(host, node_id, limit):
             stage = item.get("stage", "?")
             layer = item.get("layerId", "").split("/")[-1]
             status = item.get("status", "?")
+            item_id = item.get("itemId", "")
             summary = item.get("summaryText", "") or ""
             pt = item.get("propagatedText")  # now a Propagation dict from API
             pt_str = json.dumps(pt) if isinstance(pt, dict) else (pt or "")
-            print(f"  [{stage}] {layer}  status={status}")
+            print(f"  [{stage}] {layer}  status={status}  itemId={item_id}")
             if summary:
                 print(f"    summary: {summary[:120]}")
             print(f"    {summarize_payload(pt_str)}")
+            print(f"    → python propagation_detail.py {node_id} --limit 1  (review full payload)")
     print()
 
     print("═══ PENDING PERMISSIONS ═══")

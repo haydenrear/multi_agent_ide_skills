@@ -81,22 +81,46 @@ Run immediately after `start-goal`, after every `send-message` / action, and aft
 
 The controller's job is not only to confirm the workflow completes — it is to **verify after each agent action that the work aligns with the goal**, and interrupt when it does not.
 
-Use `executables/poll.py` for a combined one-shot view, or call directly:
-```bash
-curl -X POST http://localhost:8080/api/propagations/items/by-node \
-  -H 'Content-Type: application/json' \
-  -d '{"nodeId": "<nodeId>", "limit": 2}'
+Use `executables/poll.py` for a combined one-shot view. It prints each item's `itemId` and a truncated summary. **The summary is always truncated — treat it as a navigation aid only, not a review.**
+
+#### 5a — Identify new items from poll output
+
+`poll.py` prints each propagation item as:
+```
+  [ACTION_REQUEST] <layer>  status=<status>  itemId=<id>
+    summary: <truncated>
+    <truncated payload>
+    → python propagation_detail.py <nodeId> --limit 1  (review full payload)
 ```
 
-Read the `propagatedText` field of each item — this is the full serialized action request or response payload that passed through the propagators. Key fields to check:
-- `goal` — confirms the agent received the right task
-- `agentResult` / `output` — what the agent decided or produced
-- `delegationRationale` — why work was dispatched the way it was
-- `collectorDecision.decisionType` — ADVANCE_PHASE / ROUTE_BACK / STOP
+Track which `itemId` values you have already reviewed. When a new `itemId` appears (i.e., one you haven't seen before), **always read the full payload before continuing** — do not rely on the truncated summary.
+
+#### 5b — Read every new ACTION_REQUEST and ACTION_RESPONSE in full
+
+```bash
+# Read the most recent N items in full (use --raw for complete JSON, --limit to scope)
+python executables/propagation_detail.py <nodeId> --limit 3 --raw
+
+# Or extract a specific field across items
+python executables/propagation_detail.py <nodeId> --limit 3 --field goal
+python executables/propagation_detail.py <nodeId> --limit 3 --field agentResult
+python executables/propagation_detail.py <nodeId> --limit 3 --field collectorDecision
+```
+
+**What to check in the full payload:**
+- `goal` — confirms the agent received the right task, not a hallucinated or drifted version
+- `agentResult` / `output` — what the agent decided or produced; look for scope creep, wrong files, or invented requirements
+- `delegationRationale` — why work was dispatched the way it was; should match the original ticket intent
+- `collectorDecision.decisionType` — ADVANCE_PHASE / ROUTE_BACK / STOP; verify the reason is sound
+- `recommendations` / `planningResults` — any planning output; check for hallucinated steps or out-of-scope changes
+- Phase violations — e.g., a discovery agent that executed code changes instead of just reading files
+
+If any field looks wrong, **do not continue polling**. Go to Step 8 to steer before the next agent runs.
 
 **Decision tree:**
 - **On-track** → continue to Step 6 (poll events) for detail if needed, or skip directly to Step 10 (continue polling).
-- **Off-track or concerning** → go to Step 8 (apply action / send message) to steer or interrupt before continuing.
+- **Off-track, hallucination, or scope creep detected** → go to Step 8 (apply action / send message) to steer or interrupt before the next agent picks up the result.
+- **Phase violation** (e.g., discovery agent implemented code) → send a corrective message noting the violation; the workflow orchestrator may already have caught it, but confirm before proceeding.
 - **No items returned** → propagators have not fired yet for this node (early in run, or no propagators registered for this layer). Continue to Step 6.
 
 > This endpoint returns items across all statuses (not just PENDING) ordered by recency, so it reflects the latest payload the propagator saw regardless of whether an escalation was raised.
