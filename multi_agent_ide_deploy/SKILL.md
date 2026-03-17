@@ -61,6 +61,10 @@ Fix the reported issues before retrying. Common causes:
 - Uncommitted changes in submodules — commit and push first
 - Detached HEAD — `git switch main` in the affected submodule
 - SHA mismatch — ensure you pushed all changes from source repo before syncing
+- **Submodule pointer not committed** — if a submodule (e.g. `skills`) shows "modified content" or "new commits" in the gate, the *parent* of that submodule has not yet committed and pushed the updated pointer. This is a two-level problem for nested submodules: `multi_agent_ide_skills` inside `skills` inside the root. Fix order:
+  1. `cd skills && git add multi_agent_ide_skills && git commit -m "Update pointer" && git push origin main`
+  2. `cd .. && git add skills && git commit -m "Update skills submodule pointer" && git push origin main`
+  Then re-run `clone_or_pull.py`.
 
 ## Script: `scripts/deploy_restart.py`
 
