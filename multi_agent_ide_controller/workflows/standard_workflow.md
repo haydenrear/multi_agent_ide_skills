@@ -24,11 +24,14 @@ Check `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` for existing clone. If 
 ```bash
 TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt 2>/dev/null)
 cd "$TMP_REPO"
-git switch main
-git pull --ff-only origin main
-git submodule foreach --recursive 'git switch main || true'
-git submodule foreach --recursive 'git pull --ff-only origin main || true'
-git submodule foreach --recursive 'git reset --hard || true'
+git fetch origin main && git reset --hard origin/main
+
+# IMPORTANT: git submodule update --recursive does NOT pull new commits for
+# skills/multi_agent_ide_skills. You must cd into each changed submodule and pull directly:
+cd "$TMP_REPO/skills" && git checkout main && git pull origin main
+cd "$TMP_REPO/skills/multi_agent_ide_skills" && git checkout main && git pull origin main
+cd "$TMP_REPO/multi_agent_ide_java_parent" && git checkout main && git pull origin main
+# Add other submodules as needed for the specific change being synced
 ```
 
 **Pre-deploy verification gate (required, do not skip):**
