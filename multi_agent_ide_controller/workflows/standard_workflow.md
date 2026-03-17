@@ -240,7 +240,28 @@ Poll every 60 seconds for long-running runs. Watch `workflow-graph` for:
 - `pendingItems` non-empty → waiting for input → run Step 9 (handle blocked states)
 - No growth across 2-3 polls → stalled → load the `multi_agent_ide_debug` skill and follow its triage steps. Check `executables/reference.md` for available log search scripts before doing anything else.
 
-### Step 11 — Redeploy after changes
+### Step 11 — Review ticket agent work after merge
+
+**When to run:** after each ticket agent node transitions to COMPLETED and its merge-back is visible (check `workflow-graph` for the ticket node showing COMPLETED status).
+
+The ticket agent's changes are merged into the main worktree at the end of each ticket. Review the actual code/files produced before the next ticket agent starts — catch scope creep, wrong files modified, or acceptance criteria not met while they are still isolated.
+
+**What to check:**
+1. **Files changed** — read the `filesModified` field from the `ACTION_RESPONSE runTicketAgent` propagation item (`propagation_detail.py --limit N --field agentResult`). Cross-check against the ticket's `relatedFiles` and acceptance criteria.
+2. **Diff the worktree** — the ticket's worktree branch can be inspected directly:
+   ```bash
+   git -C <worktree-path> log --oneline -5
+   git -C <worktree-path> diff HEAD~1
+   ```
+3. **Acceptance criteria** — verify each criterion from the ticket's `acceptanceCriteria` list is satisfied by the output.
+4. **No unintended changes** — confirm no files outside the ticket scope were modified (e.g. unrelated Java classes, schema files changed without a Liquibase entry).
+
+**Decision tree:**
+- **All criteria met, no scope creep** → continue to Step 10 (next ticket).
+- **Partial or incorrect implementation** → send a corrective message to the ticket-dispatch node (or trigger a route-back interrupt) before the next ticket picks up the merged result.
+- **Wrong files modified or out-of-scope changes** → raise an interrupt via `POST /api/interrupts/resolve` with `resolutionType: REJECTED` to route back.
+
+### Step 12 — Redeploy after changes
 ```bash
 python skills/multi_agent_ide_deploy/scripts/deploy_restart.py
 ```
