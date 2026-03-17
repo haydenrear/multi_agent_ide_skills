@@ -95,12 +95,13 @@ def parse_interrupt_item(item):
     }
 
 
-def resolve_interrupt(host, node_id, context_id, resolution_type, notes):
-    """Try resolving by contextId first, fall back to root nodeId."""
+def resolve_interrupt(host, interrupt_id, origin_node_id, resolution_type, notes):
+    """Try resolving by interruptId first, fall back to originNodeId (ArtifactKey scope lookup)."""
     candidates = []
-    if context_id:
-        candidates.append(context_id)
-    candidates.append(node_id)
+    if interrupt_id and interrupt_id != "?":
+        candidates.append(interrupt_id)
+    if origin_node_id and origin_node_id != "?":
+        candidates.append(origin_node_id)
 
     for candidate in candidates:
         result = post(host, "/api/interrupts/resolve", {
@@ -122,14 +123,12 @@ def main():
                         help="Resolution type")
     parser.add_argument("--notes", default="", help="Resolution notes (e.g. chosen option)")
     parser.add_argument("--host", default="http://localhost:8080")
-    parser.add_argument("--limit", type=int, default=50)
     args = parser.parse_args()
 
-    pending = find_pending_interrupts(args.host, args.node_id, args.limit)
+    pending = find_pending_interrupts(args.host, args.node_id)
 
     if not pending:
         print("No pending interrupts found.")
-        print(f"(looked for propagation items with layer={INTERRUPT_LAYER!r} and status=PENDING)")
         return
 
     print(f"{len(pending)} pending interrupt(s)\n")
@@ -160,7 +159,7 @@ def main():
         if args.resolve:
             print(f"\nResolving as {args.resolve}...")
             result, used_id = resolve_interrupt(
-                args.host, args.node_id, interrupt_id, args.resolve, args.notes
+                args.host, interrupt_id, origin_node, args.resolve, args.notes
             )
             if result:
                 print(f"  RESOLVED via id={used_id}")
@@ -168,7 +167,8 @@ def main():
             else:
                 print("  FAILED — could not resolve interrupt", file=sys.stderr)
         else:
-            print(f"\nRun with --resolve APPROVED [--notes \"<choice>\"] to resolve.")
+            node_str = args.node_id
+            print(f"\n  → python interrupts.py {node_str} --resolve APPROVED [--notes \"<choice>\"]")
 
     print()
 

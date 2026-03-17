@@ -43,9 +43,13 @@ def post(host, path, body):
 def show_graph(node, depth=0):
     pad = "  " * depth
     ntype = node.get("nodeType", "?")
-    status = node.get("status", "?")
+    status = node.get("currentStatus") or node.get("status", "?")
+    action = node.get("actionName") or ""
+    last_event = (node.get("lastEventAt") or "")[:19]
     pending = node.get("pendingItems", [])
-    print(f"{pad}{ntype}  status={status}  pending={len(pending)}")
+    action_str = f"  action={action}" if action else ""
+    last_str = f"  last={last_event}" if last_event else ""
+    print(f"{pad}{ntype}  status={status}{action_str}{last_str}  pending={len(pending)}")
     for p in pending:
         print(f"{pad}  ⚠ PENDING: {p}")
     for child in node.get("children", [])[:8]:
@@ -55,33 +59,35 @@ def show_graph(node, depth=0):
 def summarize_payload(pt):
     """Extract the most meaningful fields from a propagatedText JSON payload.
 
-    Handles the Propagation record structure: {"llmOutput": "...", "propagationRequest": "{...}"}
-    as well as legacy flat payloads.
+    Handles the Propagation record structure: {"llmOutput": "...", "propagationRequest": {...}}
+    where propagationRequest is now a native JSON object (not a double-encoded string).
+    Also handles legacy flat payloads for backwards compatibility.
     """
     if not pt:
         return "(empty)"
     try:
         d = json.loads(pt)
-        # New Propagation record structure: llmOutput + propagationRequest
+        # Propagation record structure: llmOutput + propagationRequest (native object)
         if "llmOutput" in d or "propagationRequest" in d:
             llm = d.get("llmOutput", "")
-            req_str = d.get("propagationRequest", "")
+            req = d.get("propagationRequest")
+            # req is now a dict (native JSON object), not a string
+            if isinstance(req, str):
+                try:
+                    req = json.loads(req)
+                except Exception:
+                    req = None
             llm_summary = str(llm)[:200] if llm else "(no llm output)"
             req_summary = ""
-            if req_str:
-                try:
-                    req = json.loads(req_str)
-                    # Pull a meaningful field from the nested request
-                    for key in ["goal", "delegationRationale", "output", "collectorDecision"]:
-                        v = req.get(key)
-                        if v:
-                            req_summary = f"  req.{key}: {str(v)[:150]}"
-                            break
-                    if not req_summary:
-                        active = [k for k, v in req.items() if v is not None]
-                        req_summary = f"  req.fields: {active[:6]}"
-                except Exception:
-                    req_summary = f"  req: {req_str[:100]}"
+            if req and isinstance(req, dict):
+                for key in ["goal", "delegationRationale", "output", "collectorDecision"]:
+                    v = req.get(key)
+                    if v:
+                        req_summary = f"  req.{key}: {str(v)[:150]}"
+                        break
+                if not req_summary:
+                    active = [k for k, v in req.items() if v is not None]
+                    req_summary = f"  req.fields: {active[:6]}"
             return f"llmOutput: {llm_summary}{chr(10) + '    ' + req_summary.strip() if req_summary else ''}"
         # Legacy flat payload — priority fields
         for key in ["goal", "delegationRationale", "output", "collectorDecision", "mergeError"]:
@@ -111,8 +117,13 @@ def main():
     graph = post(host, "/api/ui/workflow-graph", {"nodeId": node_id})
     if graph:
         s = graph["stats"]
+        event_counts = s.get("eventTypeCounts") or {}
+        goal_done = event_counts.get("GOAL_COMPLETED", 0)
+        node_errors = event_counts.get("NODE_ERROR", 0)
+        completion = "  *** GOAL_COMPLETED ***" if goal_done else ""
+        error_flag = f"  NODE_ERROR={node_errors}" if node_errors else ""
         print(f"events={s['totalEvents']}  chatMsgs={s['chatMessageEvents']}  "
-              f"tools={s.get('toolEvents', 0)}  errors={s['recentErrorCount']}")
+              f"errors={s['recentErrorCount']}{error_flag}{completion}")
         root = graph.get("root")
         if root:
             show_graph(root)
@@ -130,11 +141,12 @@ def main():
             layer = item.get("layerId", "").split("/")[-1]
             status = item.get("status", "?")
             summary = item.get("summaryText", "") or ""
-            pt = item.get("propagatedText") or ""
+            pt = item.get("propagatedText")  # now a Propagation dict from API
+            pt_str = json.dumps(pt) if isinstance(pt, dict) else (pt or "")
             print(f"  [{stage}] {layer}  status={status}")
             if summary:
                 print(f"    summary: {summary[:120]}")
-            print(f"    {summarize_payload(pt)}")
+            print(f"    {summarize_payload(pt_str)}")
     print()
 
     print("═══ PENDING PERMISSIONS ═══")

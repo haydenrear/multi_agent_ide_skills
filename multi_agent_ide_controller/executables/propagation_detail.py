@@ -48,19 +48,51 @@ def post(host, path, body):
 
 
 def show_payload(pt, fields, raw):
+    """Display propagatedText which is now a Propagation object: {llmOutput, propagationRequest}.
+    propagationRequest is a native JSON object (not a double-encoded string).
+    Falls back to flat JSON for legacy items.
+    """
     if not pt:
         print("  (empty propagatedText)")
         return
-    try:
-        d = json.loads(pt)
-    except Exception:
-        print(f"  (non-JSON): {pt[:300]}")
-        return
+
+    # pt may arrive as a dict (new API) or a JSON string (if called with raw item)
+    if isinstance(pt, str):
+        try:
+            d = json.loads(pt)
+        except Exception:
+            print(f"  (non-JSON): {pt[:500]}")
+            return
+    else:
+        d = pt
 
     if raw:
         print(json.dumps(d, indent=2, default=str))
         return
 
+    # Propagation record structure: show llmOutput, then search propagationRequest
+    llm_output = d.get("llmOutput")
+    prop_req = d.get("propagationRequest")
+    if prop_req is not None or llm_output is not None:
+        if llm_output:
+            print(f"  llmOutput: {str(llm_output)[:300]}")
+        if isinstance(prop_req, str):
+            try:
+                prop_req = json.loads(prop_req)
+            except Exception:
+                prop_req = None
+        if isinstance(prop_req, dict):
+            _show_fields(prop_req, fields)
+            return
+        elif prop_req is not None:
+            print(f"  propagationRequest: {str(prop_req)[:500]}")
+        return
+
+    # Legacy flat payload
+    _show_fields(d, fields)
+
+
+def _show_fields(d, fields):
     shown = False
     for f in fields:
         v = d.get(f)
@@ -71,17 +103,15 @@ def show_payload(pt, fields, raw):
             v_str = json.dumps(v, indent=2, default=str)
         else:
             v_str = str(v)
-        # Indent multiline
         lines = v_str.splitlines()
         if len(lines) == 1:
-            print(f"  {f}: {lines[0][:300]}")
+            print(f"  {f}: {lines[0][:500]}")
         else:
             print(f"  {f}:")
-            for line in lines[:20]:
+            for line in lines[:30]:
                 print(f"    {line}")
-            if len(lines) > 20:
-                print(f"    ... ({len(lines) - 20} more lines)")
-
+            if len(lines) > 30:
+                print(f"    ... ({len(lines) - 30} more lines)")
     if not shown:
         active = [k for k, v in d.items() if v is not None]
         print(f"  (no priority fields present — active keys: {active[:10]})")
@@ -112,13 +142,13 @@ def main():
         status = item.get("status", "?")
         created = item.get("createdAt", "?")
         summary = item.get("summaryText") or ""
-        pt = item.get("propagatedText") or ""
+        pt = item.get("propagatedText")  # dict (Propagation object) or None
 
         print(f"\n{'─'*60}")
         print(f"[{stage}] {layer}  status={status}  created={created[:19]}")
         if summary:
-            print(f"  AI summary: {summary[:150]}")
-        print(f"  payload ({len(pt)} chars):")
+            print(f"  AI summary: {summary[:300]}")
+        print(f"  payload:")
         show_payload(pt, fields, args.raw)
 
 
