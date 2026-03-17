@@ -163,10 +163,11 @@ def main():
     if interrupts:
         print(f"{len(interrupts)} pending")
         for i in (interrupts if isinstance(interrupts, list) else []):
-            print(f"  id={i.get('id', '?')}  type={i.get('type', '?')}")
+            print(f"  interruptId={i.get('interruptId', '?')}  node=...{str(i.get('originNodeId',''))[-30:]}")
             reason = i.get("reason") or i.get("message") or ""
             if reason:
                 print(f"    reason: {reason[:150]}")
+        print("  → run: interrupts.py <nodeId> --resolve APPROVED [--notes \"<choice>\"]")
     else:
         print("0 pending")
 
