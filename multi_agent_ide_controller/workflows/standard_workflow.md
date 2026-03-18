@@ -265,3 +265,36 @@ The ticket agent's changes are merged into the main worktree at the end of each 
 ```bash
 python skills/multi_agent_ide_deploy/scripts/deploy_restart.py
 ```
+
+---
+
+## Ongoing Tracking Rules
+
+### Rule A — Log bugs and issues seen in propagation items to `outstanding.md`
+
+When reviewing propagation items (Step 5) and you encounter a bug, error, or undesirable behavior (e.g., a propagator raises an escalation, an agent produces incorrect output, a constraint violation is detected, or a tool call fails), **add a new entry to `skills/multi_agent_ide_skills/multi_agent_ide_debug/references/outstanding.md`** before continuing.
+
+Format:
+```markdown
+## N. <short title>
+
+**Problem:** <what was observed, including nodeId / itemId if available>
+
+**Root cause:** <diagnosed or suspected cause>
+
+**Workaround:** <what you did to get past it>
+
+**Fix needed:** <what should be implemented to resolve it permanently>
+```
+
+Do not skip this step even if the issue appears transient or was immediately resolved via a corrective message. The goal is a complete record of issues surfaced during live runs.
+
+### Rule B — Log corrective messages sent to agents in `outstanding.md`
+
+When you send a corrective message to an agent (Step 8) to steer or fix its behavior, **add a new entry to `outstanding.md`** recording both the issue and the corrective action taken.
+
+This applies to any `SEND_MESSAGE` that corrects agent behavior — e.g., fixing a misinterpreted constraint, redirecting scope creep, clarifying a requirement that was hallucinated, or overriding a wrong routing decision.
+
+**Example:** During a discovery phase, the agent flagged a constraint conflict because `CLAUDE.md` says "no parallel sub-agents" and the goal mentioned "parallel execution." The corrective message sent was: `"The CLAUDE.md directive about parallel sub-agents applies to Claude Code tool usage only — it does NOT restrict the feature being implemented."` — this should be recorded so the same misinterpretation can be addressed at the prompt level in a future fix.
+
+Format: same as Rule A, with the corrective message text in the **Workaround** field and the prompt/constraint ambiguity described in the **Fix needed** field.
