@@ -23,3 +23,4 @@ Related to #1: the `→ python propagation_detail.py <nodeId> --limit N` hint pr
 **Fix:** Blocked on #1 (by-itemId endpoint). Once that exists, the hint can use `--item-id` which is stable across polls.
 
 ---
+
