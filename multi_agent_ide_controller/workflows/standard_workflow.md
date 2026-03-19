@@ -8,15 +8,31 @@ For experimental or alternative workflows, create a new file in this directory (
 
 ### Step 1 — Push and sync
 
-**1a. Push changes from source repo:**
+**1a. Push changes from source repo (innermost submodule first):**
+
+Submodule pointers must be committed from the inside out. Do **not** use `git submodule foreach --recursive` for add/commit/push — it runs each operation across all submodules before the next, so outer submodules stage stale pointers.
+
 ```bash
-git submodule foreach --recursive 'git add . || true'
-git submodule foreach --recursive 'git commit -m "preparing" || true'
-git submodule foreach --recursive 'git push origin main || true'
-git add .
-git commit -m "preparing"
-git push origin main
+# 1. Innermost: skills/multi_agent_ide_skills
+cd skills/multi_agent_ide_skills
+git add . && git commit -m "preparing" && git push origin main
+cd ../..
+
+# 2. Middle: skills (now picks up the new multi_agent_ide_skills pointer)
+cd skills
+git add multi_agent_ide_skills && git add . && git commit -m "preparing" && git push origin main
+cd ..
+
+# 3. Sibling: multi_agent_ide_java_parent
+cd multi_agent_ide_java_parent
+git add . && git commit -m "preparing" && git push origin main
+cd ..
+
+# 4. Root: parent repo (picks up updated skills + java_parent pointers)
+git add skills multi_agent_ide_java_parent && git commit -m "preparing" && git push origin main
 ```
+
+Each step may no-op if there are no changes — that's fine (`|| true` if scripting).
 
 **1b. Sync or create tmp repo** — use `multi_agent_ide_deploy` skill for `clone_or_pull.py` which handles clone/sync with a 3-phase verification gate.
 
@@ -374,13 +390,20 @@ Before deploying agents, push your changes from the source repo's feature branch
 # From source repo (e.g., ~/IdeaProjects/multi_agent_ide_parent)
 git switch feature/ticket-001
 
-git submodule foreach --recursive 'git add . || true'
-git submodule foreach --recursive 'git commit -m "preparing" || true'
-git submodule foreach --recursive 'git push origin feature/ticket-001 || true'
+# Push innermost submodule first, then work outward (same pattern as Step 1a)
+cd skills/multi_agent_ide_skills
+git add . && git commit -m "preparing" && git push origin feature/ticket-001
+cd ../..
 
-git add .
-git commit -m "preparing"
-git push origin feature/ticket-001
+cd skills
+git add multi_agent_ide_skills && git add . && git commit -m "preparing" && git push origin feature/ticket-001
+cd ..
+
+cd multi_agent_ide_java_parent
+git add . && git commit -m "preparing" && git push origin feature/ticket-001
+cd ..
+
+git add skills multi_agent_ide_java_parent && git commit -m "preparing" && git push origin feature/ticket-001
 ```
 
 Then sync the tmp repo to pull those changes:
