@@ -14,7 +14,7 @@ Phase 3 — Deploy:
   Provisions required directories and optionally invokes deploy_restart.py.
 
 Usage:
-  python clone_or_pull.py [--repo-url URL] [--dry-run] [--skip-deploy]
+  python clone_or_pull.py [--repo-url URL] [--branch BRANCH] [--dry-run] [--skip-deploy]
   python clone_or_pull.py --status   # check current tmp repo state only
 
 Environment:
@@ -34,7 +34,6 @@ from pathlib import Path
 DEFAULT_REPO_URL = "https://github.com/haydenrear/multi_agent_ide_parent.git"
 TMP_BASE = Path("/private/tmp/multi_agent_ide_parent")
 TMP_REPO_FILE = TMP_BASE / "tmp_repo.txt"
-DEFAULT_BRANCH = "main"
 
 # Script lives at <source_root>/skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/
 SOURCE_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -67,18 +66,18 @@ def write_tmp_repo(path: Path) -> None:
 
 # ── phase 1: clone or sync ────────────────────────────────────────────────────
 
-def phase1_clone(repo_url: str, dry_run: bool) -> dict:
+def phase1_clone(repo_url: str, branch: str, dry_run: bool) -> dict:
     import re
     # derive directory name from repo url
     name = re.sub(r"\.git$", "", repo_url.rstrip("/").split("/")[-1])
     target = TMP_BASE / name
 
     if dry_run:
-        return {"phase": "clone", "dry_run": True, "target": str(target), "url": repo_url}
+        return {"phase": "clone", "dry_run": True, "target": str(target), "url": repo_url, "branch": branch}
 
     TMP_BASE.mkdir(parents=True, exist_ok=True)
     result = run([
-        "git", "clone", "--recurse-submodules", repo_url, str(target), "--branch", DEFAULT_BRANCH
+        "git", "clone", "--recurse-submodules", repo_url, str(target), "--branch", branch
     ], check=False)
     if result.returncode != 0:
         return {"phase": "clone", "ok": False, "error": result.stderr.strip()}
@@ -94,29 +93,29 @@ def phase1_clone(repo_url: str, dry_run: bool) -> dict:
     return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result}
 
 
-def phase1_sync(repo_path: Path, dry_run: bool) -> dict:
+def phase1_sync(repo_path: Path, branch: str, dry_run: bool) -> dict:
     if dry_run:
-        return {"phase": "sync", "dry_run": True, "path": str(repo_path)}
+        return {"phase": "sync", "dry_run": True, "path": str(repo_path), "branch": branch}
 
     errors = []
     cwd = str(repo_path)
 
-    # switch root to main
-    r = git(["switch", DEFAULT_BRANCH], cwd=cwd, check=False)
+    # switch root to specified branch
+    r = git(["switch", branch], cwd=cwd, check=False)
     if r.returncode != 0:
         errors.append(f"root switch: {r.stderr.strip()}")
 
-    r = git(["pull", "--ff-only", "origin", DEFAULT_BRANCH], cwd=cwd, check=False)
+    r = git(["pull", "--ff-only", "origin", branch], cwd=cwd, check=False)
     if r.returncode != 0:
         errors.append(f"root pull: {r.stderr.strip()}")
 
     r = git(["submodule", "foreach", "--recursive",
-             f"git switch {DEFAULT_BRANCH} || true"], cwd=cwd, check=False)
+             f"git switch {branch} || true"], cwd=cwd, check=False)
     if r.returncode != 0:
         errors.append(f"submodule switch: {r.stderr.strip()}")
 
     r = git(["submodule", "foreach", "--recursive",
-             f"git pull --ff-only origin {DEFAULT_BRANCH} || true"], cwd=cwd, check=False)
+             f"git pull --ff-only origin {branch} || true"], cwd=cwd, check=False)
     if r.returncode != 0:
         errors.append(f"submodule pull: {r.stderr.strip()}")
 
@@ -253,6 +252,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Clone or pull multi_agent_ide to /private/tmp")
     parser.add_argument("--repo-url", default=os.environ.get("MULTI_AGENT_IDE_REPO_URL", DEFAULT_REPO_URL),
                         help="Repository URL to clone (default: MULTI_AGENT_IDE_REPO_URL or GitHub URL)")
+    parser.add_argument("--branch", default="main",
+                        help="Branch to clone/sync to (default: main)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print actions without executing")
     parser.add_argument("--skip-deploy", action="store_true",
@@ -272,10 +273,10 @@ def main() -> None:
     # Phase 1
     existing = None if args.force_clone else read_tmp_repo()
     if existing:
-        r1 = phase1_sync(existing, args.dry_run)
+        r1 = phase1_sync(existing, args.branch, args.dry_run)
         repo_path = existing
     else:
-        r1 = phase1_clone(args.repo_url, args.dry_run)
+        r1 = phase1_clone(args.repo_url, args.branch, args.dry_run)
         if not args.dry_run and not r1.get("ok"):
             print(json.dumps({"ok": False, "results": [r1]}, indent=2))
             sys.exit(1)

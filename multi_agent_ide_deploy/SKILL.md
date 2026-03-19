@@ -17,7 +17,7 @@ Use this skill when you need to clone, sync, or restart the `multi_agent_ide` ap
 
 Three-phase deploy preparation:
 
-**Phase 1 — Clone/Sync**: Detects if `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` exists. If yes, syncs all repos to `main`. If no, clones fresh.
+**Phase 1 — Clone/Sync**: Detects if `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` exists. If yes, syncs all repos to the specified branch (default: `main`). If no, clones fresh from the specified branch.
 
 **Phase 2 — Verification Gate**: Validates dirty files, detached HEADs, SHA alignment. Returns structured JSON errors; exits non-zero on gate failure.
 
@@ -25,8 +25,12 @@ Three-phase deploy preparation:
 
 ### Usage
 ```bash
-# Full flow: clone/sync + gate + provision
+# Full flow: clone/sync + gate + provision (defaults to main branch)
 python scripts/clone_or_pull.py
+
+# Clone/sync from a specific branch
+python scripts/clone_or_pull.py --branch develop
+python scripts/clone_or_pull.py --branch feature/xyz
 
 # Status check only (no changes)
 python scripts/clone_or_pull.py --status
@@ -46,6 +50,27 @@ python scripts/clone_or_pull.py --dry-run
 
 ### Environment
 - `MULTI_AGENT_IDE_REPO_URL` — override default GitHub URL
+
+### Branch support
+By default, `clone_or_pull.py` operates on the `main` branch for backward compatibility. To work with other branches, use the `--branch` flag:
+
+```bash
+# Clone from develop branch
+python scripts/clone_or_pull.py --branch develop
+
+# Sync existing tmp repo to feature branch
+python scripts/clone_or_pull.py --branch feature/xyz
+
+# Explicitly specify main (same as no --branch)
+python scripts/clone_or_pull.py --branch main
+```
+
+The script will:
+1. Clone/checkout the specified branch in the root repository
+2. Automatically switch each submodule to the branch checked out in the source repository (via `checkout_source_branches()`)
+3. Verify all repos are clean and properly synced
+
+This enables parallel execution on non-main branches for testing, feature development, and multi-branch workflows.
 
 ### Gate failures
 If Phase 2 fails, the script exits with code `2` and prints JSON like:
@@ -114,10 +139,21 @@ python skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudel
 
 Or use the `clone_or_pull.py` script which handles all three phases and prints the next deploy command when run with `--skip-deploy`.
 
-## Only deploy from `main`
-Do not use other branches unless explicitly asked. When pushing and pulling, always operate on `main` for all repositories and submodules.
+## Branch support
+The deploy flow now supports arbitrary branches (not just `main`). Use the `--branch` flag with `clone_or_pull.py` to deploy from other branches:
 
-If the application fails to clone/worktree-branch after deploy, re-run the pre-deploy verification gate first. Detached HEAD or stale submodule SHAs are the most common cause of clone/branch errors.
+```bash
+python scripts/clone_or_pull.py --branch feature/xyz
+python scripts/deploy_restart.py
+```
+
+By default (without `--branch`), the script operates on `main` for backward compatibility. All repositories and submodules are synced to the specified branch automatically.
+
+### Branch deployment troubleshooting
+If the application fails to clone/worktree-branch after deploy, re-run the pre-deploy verification gate first. Detached HEAD or stale submodule SHAs are the most common cause of clone/branch errors. When working with non-main branches, ensure:
+1. All repositories have the target branch created and pushed
+2. Submodule pointers are committed with the correct branch checkouts
+3. The verification gate passes before deploying
 
 ---
 
