@@ -165,6 +165,10 @@ If the application fails to clone/worktree-branch after deploy, re-run the pre-d
 |--------|---------|
 | `scripts/clone_or_pull.py` | Three-phase deploy prep: clone/sync → verification gate → provision |
 | `scripts/deploy_restart.py` | Deploy and restart the application with health check |
+| `scripts/create-feature-branch.py` | Create and push a feature branch across root + all submodules |
+| `scripts/sync-feature-branch.py` | Sync (pull) a feature branch across root + all submodules |
+| `scripts/merge-feature-to-main.py` | Merge a feature branch into main across root + all submodules |
+| `scripts/pull-merged-code.py` | Pull latest main after merge, across root + all submodules |
 
 ### Workflow
 1. **Before automating any deploy step** (cloning, syncing, health checking), check if a script already handles it.
@@ -172,3 +176,33 @@ If the application fails to clone/worktree-branch after deploy, re-run the pre-d
 3. **If no match exists**, write a new script to `scripts/` — it should be self-contained, accept CLI args, and print structured output.
 
 These scripts are the accumulation of deployment knowledge across sessions. Each improvement makes future deploys faster and more reliable.
+
+### Branch management scripts
+
+For parallel execution on feature branches, use these helper scripts. They manage branch state across the root repository and all submodules automatically:
+
+**Create a feature branch:**
+```bash
+python scripts/create-feature-branch.py --branch feature/ticket-001
+# Creates and pushes feature/ticket-001 in root + all submodules
+```
+
+**Sync a feature branch (pull latest):**
+```bash
+python scripts/sync-feature-branch.py --branch feature/ticket-001
+# Pulls latest in root + all submodules, switches to branch first
+```
+
+**Merge feature branch into main:**
+```bash
+python scripts/merge-feature-to-main.py --branch feature/ticket-001
+# Merges feature/ticket-001 into main in root + all submodules
+```
+
+**Pull main after merge:**
+```bash
+python scripts/pull-merged-code.py
+# Switches all repos to main and pulls latest (after merge-feature-to-main.py)
+```
+
+See `standard_workflow.md` in `multi_agent_ide_controller` for full parallel execution workflow documentation including branch creation, multi-branch coordination, and troubleshooting.

@@ -67,7 +67,7 @@ After sync, provision executor cwd:
 mkdir -p <tmp-repo>/multi_agent_ide_java_parent/multi_agent_ide/bin
 ```
 
-**Only deploy and run from `main`.** Do not use other branches unless explicitly asked.
+**Branch support:** The workflow supports both main-only and multi-branch parallel execution. See "Parallel execution with feature branches" section below for multi-branch workflows.
 
 ### Step 2 — Deploy
 ```
@@ -298,3 +298,189 @@ This applies to any `SEND_MESSAGE` that corrects agent behavior — e.g., fixing
 **Example:** During a discovery phase, the agent flagged a constraint conflict because `CLAUDE.md` says "no parallel sub-agents" and the goal mentioned "parallel execution." The corrective message sent was: `"The CLAUDE.md directive about parallel sub-agents applies to Claude Code tool usage only — it does NOT restrict the feature being implemented."` — this should be recorded so the same misinterpretation can be addressed at the prompt level in a future fix.
 
 Format: same as Rule A, with the corrective message text in the **Workaround** field and the prompt/constraint ambiguity described in the **Fix needed** field.
+
+---
+
+## Parallel Execution with Feature Branches
+
+Use this workflow when working with multiple independent feature branches or when coordinating work across feature branches that will be merged back to main.
+
+### When to use this workflow
+
+- **Multi-ticket feature development**: Each ticket is assigned a separate feature branch (`feature/ticket-001`, `feature/ticket-002`, etc.), worked in parallel, then merged back to main
+- **Exploration with risk isolation**: Work on experimental branches without affecting main; safely discard or merge back on completion
+- **Multi-agent parallelization**: Different agents or runs work on different branches simultaneously, each maintaining an independent tmp clone
+- **Concurrent release branches**: Maintain stable branches (e.g., `release/v2.0`) while main continues development
+
+### Setup: Create a feature branch
+
+Before starting work on a feature, create and push the branch from your source repo:
+
+```bash
+# From your source checkout (e.g., ~/IdeaProjects/multi_agent_ide_parent)
+git switch main
+git pull origin main
+git switch -c feature/ticket-001
+git push origin feature/ticket-001
+```
+
+**For submodules:** The feature branch should exist in each submodule before pushing the root repo branch. Otherwise, `clone_or_pull.py` will fail when it tries to switch submodules to the feature branch:
+
+```bash
+# In each submodule, create and push the feature branch
+cd skills
+git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001
+cd ../multi_agent_ide_java_parent
+git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001
+cd ..
+
+# Back in root, push the feature branch with updated submodule pointers
+git push origin feature/ticket-001
+```
+
+**One-liner for all submodules** (run from root):
+```bash
+git submodule foreach --recursive 'git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001 || true'
+git push origin feature/ticket-001
+```
+
+### Clone/sync to a feature branch
+
+Instead of Step 1b in the standard workflow, use `clone_or_pull.py` with `--branch`:
+
+```bash
+# Clone fresh with feature branch
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+
+# Or sync an existing tmp repo to a feature branch
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+```
+
+This performs the 3-phase deploy prep (clone/sync → verification gate → provision) on the specified branch. All submodules are automatically switched to the feature branch if it exists in each submodule.
+
+**Note:** You may have multiple tmp repos, one per branch. The path is stored in `/private/tmp/multi_agent_ide_parent/tmp_repo.txt` after each `clone_or_pull.py` run. To switch between branches later, either:
+- Re-run `clone_or_pull.py --branch <other-branch>` to sync an existing tmp repo to a different branch, or
+- Delete `tmp_repo.txt` and run `clone_or_pull.py --branch <branch-name>` to create a fresh clone for the new branch
+
+### Work on the feature branch
+
+Once cloned/synced to a feature branch, follow the standard workflow (Steps 2–11) **without modification**. The tmp repo is on the feature branch, so all operations (deploy, agent runs, etc.) work on that branch. There is no special handling needed.
+
+### Push changes from feature branch to tmp repo
+
+Before deploying agents, push your changes from the source repo's feature branch to the remote:
+
+```bash
+# From source repo (e.g., ~/IdeaProjects/multi_agent_ide_parent)
+git switch feature/ticket-001
+
+git submodule foreach --recursive 'git add . || true'
+git submodule foreach --recursive 'git commit -m "preparing" || true'
+git submodule foreach --recursive 'git push origin feature/ticket-001 || true'
+
+git add .
+git commit -m "preparing"
+git push origin feature/ticket-001
+```
+
+Then sync the tmp repo to pull those changes:
+
+```bash
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+```
+
+### Merge feature branch back to main
+
+After all work on the feature branch is complete and tested, merge it back to main:
+
+```bash
+# From source repo
+git switch feature/ticket-001
+git pull origin feature/ticket-001  # Ensure local is up to date with remote
+
+# Merge to main
+git switch main
+git pull origin main
+git merge feature/ticket-001  # Or use --ff-only if you want fast-forward only
+git push origin main
+
+# Also merge submodules
+cd skills
+git switch main && git pull origin main
+git merge feature/ticket-001
+git push origin main
+cd ../multi_agent_ide_java_parent
+git switch main && git pull origin main
+git merge feature/ticket-001
+git push origin main
+cd ..
+```
+
+**One-liner for all submodules and root:**
+```bash
+git submodule foreach --recursive 'git switch main && git pull origin main && git merge feature/ticket-001 && git push origin main || true'
+git switch main && git pull origin main && git merge feature/ticket-001 && git push origin main
+```
+
+If merge conflicts occur, resolve them in the source repo, commit, and push before proceeding.
+
+### Pull merged changes into the tmp repo (optional)
+
+If you deployed agents on a feature branch and want to apply the merged result to the tmp repo on main, pull the updated main:
+
+```bash
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch main
+```
+
+This switches the tmp repo back to main and pulls all merged changes (including the feature branch work now integrated into main). You can then redeploy and continue work on main if needed.
+
+Alternatively, if you are done with the tmp repo on the feature branch, you can delete it:
+
+```bash
+rm /private/tmp/multi_agent_ide_parent/tmp_repo.txt
+# The tmp repo directory will be cleaned up on the next clone_or_pull.py run
+```
+
+### Multi-branch coordination
+
+**For concurrent execution on different branches:**
+
+1. Maintain separate tmp repo paths or use the same path (via `clone_or_pull.py --branch <branch>`) if switching between branches is acceptable
+2. Coordinate timing: ensure branch-specific verification gates pass before deploying agents
+3. Track which branch each agent/run is working on — use goal tags or logging to maintain clarity (e.g., `"tags": ["feature/ticket-001"]`)
+4. After all feature branches complete, merge them to main in order of dependency
+5. Pull the final merged main back into the tmp repo and redeploy to confirm end-to-end integration
+
+### Troubleshooting branch workflows
+
+**Branch doesn't exist in a submodule:**
+```
+error: pathspec 'feature/xyz' did not match any file(s) known to git
+```
+
+Solution: Create the feature branch in the submodule and push it before running `clone_or_pull.py`. See "Create a feature branch" section above.
+
+**Detached HEAD after branch switch:**
+```bash
+# Verify you're on the correct branch
+git -C <tmp-repo> branch -v
+git -C <tmp-repo>/skills branch -v
+
+# Re-run verification gate
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --status
+```
+
+**SHA mismatch between source and tmp repo:**
+Ensure all changes are committed and pushed in the source repo before syncing:
+```bash
+git switch feature/ticket-001
+git status --short
+git submodule foreach --recursive 'git status --short || true'
+
+# Push everything
+git submodule foreach --recursive 'git push origin feature/ticket-001 || true'
+git push origin feature/ticket-001
+
+# Then sync
+python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+```
