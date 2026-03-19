@@ -322,3 +322,23 @@ That's ~4,850 chars of pure redundancy (~17% of the prompt).
 **Workaround:** Permission rejected (REJECT_ONCE). Corrective message sent to the specific discovery agent node: "You are a DISCOVERY agent — your role is READ-ONLY. You must NOT create, modify, or write any files."
 
 **Fix needed:** Strengthen the discovery agent prompt to explicitly forbid file creation/modification tools. Consider adding a tool filter that blocks `create_new_file`, `replace_text_in_file`, `Write`, and `Edit` tools for discovery and planning agent sessions.
+
+## 28. AutoAiPropagatorBootstrap misses `runDiscoveryAgent` and `planTickets` layers
+
+**Problem:** After fresh deploy, `AutoAiPropagatorBootstrap.seedAutoAiPropagators()` registers auto-AI propagators for most action layers but misses `workflow-agent/runDiscoveryAgent` and `workflow-agent/planTickets`. These are 0-propagator layers while sibling layers like `dispatchDiscoveryAgentRequests` and `dispatchPlanningAgentRequests` are correctly covered.
+
+**Root cause:** `PropagatorRegistrationService.ensureAutoAiPropagatorsRegistered()` likely iterates over the Embabel action registry but these two actions may not be visible at bootstrap time, or their layer IDs may not match the expected pattern.
+
+**Workaround:** Manual registration via the `/api/propagators/registrations` API — but this also fails with "Name is null" despite providing a valid `name` field (see #29).
+
+**Fix needed:** Investigate `ensureAutoAiPropagatorsRegistered()` to determine why these two layers are skipped. Ensure all `@Action`-annotated methods produce auto-AI propagators.
+
+## 29. Manual propagator registration via API fails with "Name is null"
+
+**Problem:** Attempting to register a propagator via `POST /api/propagators/registrations` with a valid JSON body containing `name`, `description`, `sourcePath`, `propagatorKind`, and `layerBindings` returns `{"ok":false,"message":"Name is null"}`. This happens regardless of the payload structure — including providing all fields from the `PropagatorRegistrationRequest` record.
+
+**Root cause:** Likely a Jackson deserialization issue with the Lombok `@Builder` record — the `name` field may not be deserialized correctly from the JSON body. The `@NotBlank` validation then fires on the null value.
+
+**Workaround:** None for manual registration. Auto-bootstrapped propagators (created internally) work fine.
+
+**Fix needed:** Debug the `PropagatorRegistrationRequest` deserialization. May need `@JsonProperty` annotations or a `@JsonCreator` constructor on the record.
