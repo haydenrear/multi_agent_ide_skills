@@ -312,3 +312,13 @@ That's ~4,850 chars of pure redundancy (~17% of the prompt).
 **Fix needed:** (1) For non-ticket-agent nodes (orchestrators, dispatchers, collectors), either omit submodule details entirely or show only the main worktree path. (2) For ticket agents, filter submodules to only those relevant to the ticket's `relatedFiles`. (3) At minimum, de-duplicate the branch name — show it once rather than repeating it 25 times.
 
 ---
+
+## 27. Discovery agent attempts to create files (BranchStateRepository.java) — haiku model
+
+**Problem:** During the parallel-execution-with-branches goal run (nodeId `ak:01KM41APXWZ6TR6KNV13AX1PZN`), a discovery agent (nodeId `...FNWC/...8GAH`) attempted to create `BranchStateRepository.java` via `mcp__jetbrains__create_new_file`. Discovery agents are read-only; only ticket agents should write files. This is a repeat of issue #17.
+
+**Root cause:** Haiku model does not consistently respect the phase boundary between discovery (read-only search) and ticket implementation (write). The discovery prompt may not emphasize the read-only constraint strongly enough for smaller models.
+
+**Workaround:** Permission rejected (REJECT_ONCE). Corrective message sent to the specific discovery agent node: "You are a DISCOVERY agent — your role is READ-ONLY. You must NOT create, modify, or write any files."
+
+**Fix needed:** Strengthen the discovery agent prompt to explicitly forbid file creation/modification tools. Consider adding a tool filter that blocks `create_new_file`, `replace_text_in_file`, `Write`, and `Edit` tools for discovery and planning agent sessions.
