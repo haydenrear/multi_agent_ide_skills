@@ -406,3 +406,81 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 **Workaround:** None — caused infinite retry loop requiring kill + redeploy.
 
 **Fix:** Added `ensureSubscribed` call in `RegisterBlackboardHistoryInputRequestDecorator.decorate()` before calling `register()`, so the history is created if needed regardless of execution order relative to `EmitActionStartedRequestDecorator`.
+
+## 37. Discovery agent prompt payload bloat: goal duplicated 5x, ~6700 removable tokens
+
+**Problem:** The prompt-health-check propagator reported that the discovery agent's request payload contains ~6700 removable tokens. The goal text is duplicated 5 times across different sections (Goal, Details, Curated Workflow Context, etc.). There are also duplicate Details fields, an unused Workflow Graph section, and verbose instructions that don't add decision-relevant value.
+
+**Root cause:** Multiple prompt contributors independently inject the goal into different prompt sections without deduplication. The `OrchestratorCollectorRequestDecorator` and various `PromptContributor` beans each add their own copy of the goal context.
+
+**Workaround:** The agent still functions correctly — just burns extra tokens per invocation.
+
+**Fix needed:** Implement goal deduplication in prompt assembly. Either (1) have a single canonical goal section and reference it from other contributors, or (2) add a post-assembly deduplication pass that detects and removes duplicate goal blocks, or (3) make prompt contributors aware of what's already been contributed so they skip redundant content.
+
+## 38. Prompt-health-check propagator produces false-positive "deadlock" and "out-of-distribution" escalations
+
+**Problem:** The prompt-health-check propagator sees its own prior execution history in the blackboard and misinterprets propagation analysis cycles as a workflow deadlock. It also flags valid multi-agent dispatch (e.g. agent 2 starting after agent 1 completes) as "out-of-distribution workflow state" claiming implementation is already complete.
+
+**Root cause:** The propagator lacks context about (1) its own recursive nature (analyzing prompts that include its own prior output) and (2) the multi-agent dispatch pattern where multiple agents are dispatched sequentially by the same dispatch action. Related to outstanding #22 and #32.
+
+**Workaround:** Acknowledge and dismiss these propagation items. They are informational noise.
+
+**Fix needed:** Either (1) exclude prompt-health-check's own output from the context it analyzes, or (2) add dispatch-awareness so it understands sequential multi-agent dispatch is normal, or (3) add a confidence threshold below which it suppresses escalation.
+
+## 39. RemoveIntellij settings.local.json written too late — JetBrains MCP tools still available in agent sessions
+
+**Problem:** Discovery agents request JetBrains MCP tools (`mcp__jetbrains__get_file_text_by_path`, `mcp__jetbrains__list_directory_tree`) despite `RemoveIntellij` writing a deny list to `.claude/settings.local.json` in the worktree. The tools appear as permission prompts rather than being auto-rejected.
+
+**Root cause:** `RemoveIntellij` is an `LlmCallDecorator` (order -10,001) that writes the settings file during prompt assembly. However, the ACP/Claude Code session is started *before* the first LLM call, so the tool list is already loaded when `settings.local.json` is written. Claude Code likely reads `settings.local.json` at session startup, not on each tool invocation. Confirmed: both worktrees have the correct deny file, but agents still get offered JetBrains tools.
+
+**Workaround:** Manually reject JetBrains tool permissions when they appear. The agents fall back to Find/Read/Terminal tools.
+
+**Fix needed:** Write `.claude/settings.local.json` **before** the ACP session is started — either (1) move the deny-file write into the worktree creation step (`GitWorktreeService.createMainWorktree()`), or (2) make it a `WorktreeContextRequestDecorator` post-hook that runs before the ACP session init, or (3) pre-populate the settings file in the worktree template.
+
+## 40. No `/api/workflow-graph/events` endpoint — event queries by type return 404
+
+**Problem:** `GET /api/workflow-graph/events` and `POST /api/workflow-graph/events` both return 404. There is no endpoint to query workflow events filtered by event type (e.g. `ACTION_STARTED`, `NODE_ERROR`) for a given node. The controller scripts and skill docs reference patterns like filtering events by `eventType` but no such endpoint exists.
+
+**Root cause:** The only event endpoints are under `/api/ui/nodes/events` (paginated, returns all event types) and `/api/ui/nodes/events/detail` (single event detail). Neither supports filtering by `eventType` in the request body. The `/api/ui/workflow-graph` endpoint returns aggregate stats (event type counts) but not the events themselves.
+
+**Workaround:** Use `/api/ui/nodes/events` and filter client-side, or grep the application log for specific event patterns.
+
+**Fix needed:** Add `POST /api/ui/nodes/events` support for an `eventType` filter parameter (e.g. `{"nodeId": "ak:...", "eventType": "NODE_ERROR", "limit": 10}`) so controller scripts can query specific event types without downloading all events or parsing logs.
+
+## 41. Discovery agent attempts file edits — phase boundary violation (recurring)
+
+**Problem:** During goal `ak:01KM4QQH8K1CR0EJEH1KGFE1VV`, a discovery agent (node `01KM4R6T38EFVFRJX0F60FGM8E`) requested `Edit` permission on `WorkflowGraphService.java` in the worktree. Discovery agents should be strictly read-only — they must not create, edit, or delete files.
+
+**Root cause:** The discovery agent prompt does not include a hard constraint preventing file writes. The agent model interprets "analyze the codebase" as license to modify code. This is the same class of issue as outstanding #17, #27, #29, #35.
+
+**Workaround:** Permission rejected (`REJECT_ALWAYS`). Corrective message sent via `POST /api/ui/quick-actions` (actionId `4515ca58`). Controller must continue monitoring for repeat write attempts from discovery agents.
+
+**Fix needed:** Add an explicit system-prompt constraint to discovery agent prompts: "You are READ-ONLY. Do not request Edit, Write, or any file-modification tool calls." Alternatively, enforce at the decorator level by auto-rejecting write tool calls from nodes in discovery phase.
+
+## 42. Discovery agent searches tmp repo path instead of its worktree sandbox
+
+**Problem:** During goal `ak:01KM4QQH8K1CR0EJEH1KGFE1VV`, discovery agent #2 (node `01KM4RDKR03G6G8G1NJKKWAXCS`) requested `Find **/*.py` on path `/private/tmp/multi_agent_ide_parent/multi_agent_ide_parent/multi_agent_ide_python_parent` — the deployed tmp repo, not its assigned worktree (`/Users/hayde/.multi-agent-ide/worktrees/89a53ffe-...`). The agent escaped its sandbox boundary.
+
+**Root cause:** The tmp repo path appears in files within the worktree (e.g., deploy scripts, `clone_or_pull.py` output, or config files that reference `/private/tmp/...`). The agent reads these paths during discovery and treats them as valid search targets. The `WorktreeSandboxPromptContributor` tells the agent which worktree to use, but does not explicitly forbid searching paths outside the worktree. The haiku model does not reliably infer the constraint.
+
+**Workaround:** Permission rejected (`REJECT_ONCE`). Controller must continue monitoring for out-of-sandbox path access.
+
+**Fix needed:** Add an explicit constraint to the sandbox prompt contributor: "You MUST only read files under your assigned worktree path. Do not access /private/tmp/, the source IDE project, or any other path outside the worktree." Alternatively, enforce at the permission gate by auto-rejecting tool calls targeting paths outside the agent's worktree root.
+
+## 43. Propagation pattern summary for goal `ak:01KM4QQH8K1CR0EJEH1KGFE1VV`
+
+**Observed patterns (18 propagation items, discovery phase):**
+
+1. **Prompt-health-check self-referential loop** (5 items at goal start): Propagator saw its own prior output in execution history and escalated as "CRITICAL LOOP" / "deadlock". Same class as #9, #22, #32, #38. Burned 5 cycles before the orchestrator could route forward.
+
+2. **Goal duplication flagged 3x**: Each discovery agent request triggered the same finding — goal duplicated 5-6x, ~5400 duplicate chars. Valid finding but redundantly reported. Same as #30, #37.
+
+3. **Scope ambiguity flagged 3x**: Each discovery agent request triggered scope mismatch — goal mixes design directives with discovery tasks. Valid and explains why agent #1 went off-domain.
+
+4. **Worktree context switch false positive** (1 item): Child worktree flagged as "significant deviation." Expected behavior for dispatched subagents.
+
+5. **Agent #1 returned out-of-domain results**: Analyzed SKILL.md and standard_workflow.md (documentation) instead of `.gitmodules` and `git config` (actual git configuration). Propagator correctly caught this.
+
+6. **Agent #2 searched outside sandbox** (outstanding #42): Tried to glob the tmp repo path.
+
+**Root cause for agent quality issues:** The goal statement includes 5 design/implementation directives (~250 tokens) that belong in the planning phase, not discovery. Agents conflate "analyze current state" with "design new state." The subdomain focus is too weak to override the goal's prescriptive language.
