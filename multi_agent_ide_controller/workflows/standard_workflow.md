@@ -213,6 +213,23 @@ curl -X POST http://localhost:8080/api/permissions/resolve \
 
 Use `executables/permissions.py` to inspect and batch-resolve permissions in one step.
 
+**Phase-boundary violations — REJECT and correct:**
+Discovery and planning agents are **read-only**. If a permission request shows a discovery agent, planning orchestrator, or planning agent attempting to write files (e.g., `create_new_file`, `replace_text_in_file`, `Terminal` with `cp`/`cat >`/`mkdir`), this is a phase-boundary violation:
+
+1. **Reject** the permission: `python permissions.py --resolve --option REJECT_ONCE`
+2. **Send a corrective message** to the specific agent node explaining the violation:
+```bash
+curl -X POST http://localhost:8080/api/ui/message \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "nodeId": "<agent-nodeId>",
+    "message": "CORRECTIVE ACTION: Your file write permission was REJECTED. The planning phase is READ-ONLY. You must NOT create, copy, modify, or write any files. Describe what needs to be created as ticket tasks — do not create files yourself."
+  }'
+```
+3. **Log to `outstanding.md`** per Rule B below.
+
+Only **ticket execution agents** should write files. This is a recurring issue (see outstanding #17, #27, #31).
+
 **INTERRUPT/REVIEW blocked:**
 ```bash
 # Get detail

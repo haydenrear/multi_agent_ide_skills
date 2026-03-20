@@ -40,6 +40,7 @@ PRESETS = {
     "propagation": r"Propagation|PROPAGATION|prop-event|prop-item",
     "overflow":    r"value too long|character varying|DataIntegrityViolationException|summaryText|propagated_text",
     "acp":         r"ERROR|failed|timeout|credit|rate.limit",
+    "interrupt":   r"publishInterrupt|resolveInterrupt|awaitInterrupt|Handling feedback|Resolved feedback|After feedback handled|review_resolution|WAITING_REVIEW|InterruptResolution",
 }
 
 

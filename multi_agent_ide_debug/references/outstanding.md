@@ -330,3 +330,69 @@ All 35 attachable layers now have both ACTION_REQUEST and ACTION_RESPONSE propag
 ## 29. ~~Manual propagator registration via API fails with "Name is null"~~ **DONE** (2026-03-19)
 
 Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Data` class with `@NoArgsConstructor`/`@AllArgsConstructor`. Jackson now deserializes all fields correctly. Removed `register_propagator.py` script (API works directly now).
+
+## 30. Goal text duplicated ~4x across workflow phases (~2,400 tokens wasted per agent dispatch)
+
+**Problem:** The full goal statement (~450 words, ~600 tokens) is repeated identically across multiple workflow contexts: Orchestrator, Discovery Orchestrator, Discovery Dispatch, and Discovery Agent. Prompt health propagator detected ~2,400 tokens of pure duplication.
+
+**Root cause:** Each phase includes the full goal in the prompt context rather than referencing a centralized goal ID. The goal is passed through `propagationRequest` fields at every routing hop.
+
+**Impact:** Token waste compounds with agent count — 3 discovery agents = ~7,200 wasted tokens; planning and ticket phases multiply further.
+
+**Fix needed:** Introduce a goal reference mechanism: store goal text once (e.g., in session context), pass only a goal ID or shortened summary through subsequent phases. Sub-agents can look up full text when needed.
+
+## 31. Discovery agent attempted to write files (ANALYSIS_GOAL_A_SUBMODULE_CONSTRAINTS.md) — rejected
+
+**Problem:** During discovery phase, a discovery agent tried to create `ANALYSIS_GOAL_A_SUBMODULE_CONSTRAINTS.md` in the worktree sandbox. This was caught via permission request and rejected. A corrective message was sent. Related to outstanding #17 and #27.
+
+**Root cause:** Discovery agent prompt may not sufficiently emphasize read-only constraint. The haiku model may especially struggle with this boundary.
+
+**Workaround:** Controller rejected the write permission and sent corrective message. Discovery orchestrator then referenced the non-existent file in its subdomain focus.
+
+**Fix needed:** Strengthen discovery agent prompt to include explicit "DO NOT CREATE FILES" instruction. Consider adding a filter policy to auto-reject Write/Edit tools for discovery agent nodes.
+
+## 32. Prompt-health-check propagators continue producing false-positive deadlock escalations
+
+**Problem:** During orchestrator onboarding phase, prompt-health-check propagators reported "SYSTEM FAILURE: Orchestrator infinite loop" and "CRITICAL workflow loop" when the orchestrator was actually progressing normally through its propagation evaluation cycles. This is a continuation of outstanding #9 and #22.
+
+**Root cause:** The health-check propagator interprets normal propagation evaluation cycles as deadlocks. It sees repeated AI_FILTER_SESSION → runAiPropagator → ACTION_COMPLETED patterns and flags them without understanding that propagation cycles are expected behavior.
+
+**Fix needed:** Teach the prompt-health-check propagator to distinguish between: (a) normal propagation evaluation cycles (expected), (b) actual workflow stalls (no new actions over extended period).
+
+## 33. Interrupt resolution does not auto-resume WAITING_REVIEW dispatch node
+
+**Problem:** After resolving an AGENT_REVIEW interrupt from a discovery agent via `POST /api/interrupts/resolve`, the discovery-dispatch node remained in WAITING_REVIEW state indefinitely. No pending interrupts or permissions were shown. Had to manually resume the dispatch node via `POST /api/agents/resume` to unblock the workflow.
+
+**Root cause:** The interrupt resolution endpoint returns `status=RESOLVED` with a `resumeNodeId`, but the resume does not appear to propagate to the parent dispatch node that is waiting on the interrupt result.
+
+**Workaround:** Use `POST /api/agents/resume` with the dispatch node ID after resolving interrupts.
+
+**Fix needed:** Interrupt resolution should automatically resume the waiting dispatch node, or the dispatch should poll for interrupt resolution status.
+
+**Update (same session):** Attempted `POST /api/agents/resume` on the dispatch node, the discovery agent node, and the discovery orchestrator node — all returned `status=queued` but the dispatch remained in WAITING_REVIEW. NODE_ERROR count increased from 7 to 9 after resume attempts. The workflow is fully stuck. This is a blocking issue for any workflow that uses AGENT_REVIEW interrupts from sub-agents.
+
+**Root cause identified:** `EmitActionCompletedResultDecorator` runs during `transitionToInterruptState` via the `DispatchedAgentResultDecorator` list. When the interrupt's `review_resolution` LLM call returns a `DiscoveryAgentRouting` with `agentResult` populated, the decorator calls `BlackboardHistory.unsubscribe(eventBus, operationContext)` — treating the routing as a completed agent when it's actually mid-interrupt. This kills the dispatch subagent's event bus subscription, preventing the framework from delivering subsequent events. Combined with `WorktreeMergeResultDecorator` publishing false NODE_ERROR events (#34), this explains both the stall and the error count increase.
+
+**Fix applied:** Added `if (context.agentRequest() instanceof AgentModels.InterruptRequest) { return t; }` guard to both `EmitActionCompletedResultDecorator.decorate(Routing)` and `WorktreeMergeResultDecorator.decorate(Routing)`. Both decorators now skip entirely when the decorator context indicates an interrupt request.
+
+## 34. WorktreeMergeResultDecorator fires on read-only discovery agents — publishes false NODE_ERROR
+
+**Problem:** After `transitionToInterruptState` returns a valid `DiscoveryAgentRouting`, `decorateRouting` runs `WorktreeMergeResultDecorator` which detects that child and trunk worktree IDs are the same and publishes a `NodeErrorEvent` + `MergePhaseCompletedEvent(successful=false)`. This happens because discovery agents share their parent's worktree (they're read-only), so childId == trunkId is expected — not an error.
+
+**Impact:** (1) False NODE_ERROR events pollute the event stream and inflate error counts (the 7→9 increase in #33 may partly be from this). (2) The same issue will affect ticket agents and planning agents that share a parent worktree. (3) May contribute to the WAITING_REVIEW stall in #33 — the error events could confuse framework state tracking even though the decorator returns the routing.
+
+**Root cause:** `WorktreeMergeResultDecorator.decorate(AgentResult)` at line 99 treats childId == trunkId as an error condition, but for dispatch subagents that share the parent worktree (all discovery agents, and potentially planning agents during interrupt handling), this is the normal expected state. The decorator does not distinguish between "same worktree because read-only agent" and "same worktree due to a bug."
+
+**Why it only happens on deploy:** In local dev the worktree resolution may differ (e.g. null contexts skip the check). The deployed environment resolves worktree contexts from the database, so both child and trunk get populated with the same worktree ID, triggering the equality check.
+
+**Fix applied:** Added `if (context.agentRequest() instanceof AgentModels.InterruptRequest) { return routing; }` guard at the top of `WorktreeMergeResultDecorator.decorate(Routing)`. The decorator now skips entirely when the decorator context indicates an interrupt request, avoiding false error events and no-op merge descriptors.
+
+## 35. AI propagator (haiku) executes tools — `ls`, `mkdir`, `cp`, `pytest` — instead of only analyzing
+
+**Problem:** Node `ak:01KM49DYWWD7YSPJ43NDT7GMP5/01KM49FNFQH33DYKKMWBY7S9PK` is the recycled **AI_PROPAGATOR** ACP session (claude-haiku-4-5), not a stale planning orchestrator. This propagator agent is requesting terminal permissions to run `ls`, `mkdir -p && cp -r`, and `pytest` commands. Propagators should only analyze and report — they should not execute tools or write files.
+
+**Root cause:** The AI propagator's ACP session has tool access (Terminal). The propagation prompt or the ACP profile does not restrict tool use to analysis-only. The haiku model interprets its task as "implement suggestions" rather than "report observations."
+
+**Workaround:** Rejected write permissions. Allowed the initial `ls` (read-only) before identifying the node as a propagator. The corrective message sent to this node was misdirected (thought it was a planning node).
+
+**Fix needed:** Either (1) restrict the AI propagator's ACP profile to exclude Terminal/file-write tools, or (2) add explicit "DO NOT execute tools — report observations only" instruction to the propagation prompt template, or (3) use a sandbox profile that prevents tool execution for propagator sessions.
