@@ -396,3 +396,13 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 **Workaround:** Rejected write permissions. Allowed the initial `ls` (read-only) before identifying the node as a propagator. The corrective message sent to this node was misdirected (thought it was a planning node).
 
 **Fix needed:** Either (1) restrict the AI propagator's ACP profile to exclude Terminal/file-write tools, or (2) add explicit "DO NOT execute tools — report observations only" instruction to the propagation prompt template, or (3) use a sandbox profile that prevents tool execution for propagator sessions.
+
+## 36. ~~RegisterBlackboardHistoryInputRequestDecorator silently drops first action's entry~~ **FIXED** (2026-03-20)
+
+**Problem:** After reordering decorators (RegisterBlackboardHistory from 10,000→9,000), `kickOffAnyNumberOfAgentsForCodeSearch` failed on every retry with "Discovery orchestrator request not found." The OrchestratorRequest entry from `coordinateWorkflow` was never recorded in history because the BlackboardHistory didn't exist yet at order 9,000 — it was created by `EmitActionStartedRequestDecorator.ensureSubscribed()` at order 10,000.
+
+**Root cause:** Decorator ordering dependency: `RegisterBlackboardHistoryInputRequestDecorator` (9,000) called `register()` which returned null when no history existed (first action of a run). The entry was silently dropped.
+
+**Workaround:** None — caused infinite retry loop requiring kill + redeploy.
+
+**Fix:** Added `ensureSubscribed` call in `RegisterBlackboardHistoryInputRequestDecorator.decorate()` before calling `register()`, so the history is created if needed regardless of execution order relative to `EmitActionStartedRequestDecorator`.
