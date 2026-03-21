@@ -81,3 +81,33 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 ### RULE: no inline scripts
 
 **Never write inline Python one-liners or ad-hoc grep commands** for any task covered by the above scripts. If the task is not covered, write a new script to `executables/` first, add a row to `reference.md`, then invoke it. This applies to every skill in this directory.
+
+---
+
+## Submodule commit chain — CRITICAL
+
+This repo (`multi_agent_ide_skills`) is nested inside a submodule chain:
+
+```
+multi_agent_ide_parent  →  skills  →  multi_agent_ide_skills
+```
+
+When committing changes in `multi_agent_ide_skills`, you **MUST** propagate the commit through every intermediate submodule up to the root. If you skip a level, `git clone --recurse-submodules` will fail because the parent's submodule pointer references a commit that was never pushed to the intermediate repo.
+
+### Commit order (innermost → outermost)
+
+1. `cd multi_agent_ide_skills` → `git add`, `git commit`, `git push`
+2. `cd skills` → `git add multi_agent_ide_skills`, `git commit`, `git push`
+3. `cd multi_agent_ide_parent` → `git add skills`, `git commit`, `git push`
+
+The same applies to `multi_agent_ide_java_parent` and any other submodule.
+
+### Verification — run after every commit session
+
+After committing and pushing all levels, **always** run from the root:
+
+```bash
+cd <multi_agent_ide_parent> && git submodule foreach --recursive git status
+```
+
+Every submodule must show either `nothing to commit, working tree clean` or only pre-existing unrelated changes. If any submodule shows `(new commits)` or `(modified content)` for files you just changed, you missed a level — go back and commit/push that intermediate repo before pushing the parent.
