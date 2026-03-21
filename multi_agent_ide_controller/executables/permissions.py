@@ -94,6 +94,9 @@ def main():
     parser.add_argument("--option", default="ALLOW_ALWAYS",
                         choices=["ALLOW_ALWAYS", "ALLOW_ONCE", "REJECT_ONCE", "REJECT_ALWAYS"],
                         help="Resolution option (default: ALLOW_ALWAYS)")
+    parser.add_argument("--note", default="",
+                        help="Note sent to the AI agent when rejecting (REJECT_ONCE/REJECT_ALWAYS). "
+                             "Explains why the tool call was denied so the agent can adjust.")
     parser.add_argument("--detail-timeout", type=int, default=6,
                         help="Seconds to wait for tool call info before blind-approving (default: 6)")
     parser.add_argument("--host", default="http://localhost:8080")
@@ -147,8 +150,8 @@ def main():
         else:
             print(f"Resolving {len(to_resolve)} permission(s) as {args.option}...")
             for rid in to_resolve:
-                result = post_json(args.host, "/api/permissions/resolve",
-                                   {"id": rid, "optionType": args.option})
+                body = {"id": rid, "optionType": args.option, "note": args.note}
+                result = post_json(args.host, "/api/permissions/resolve", body)
                 status = result.get("status", "?") if result else "ERROR"
                 print(f"  {rid} → {status}")
 

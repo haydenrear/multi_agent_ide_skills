@@ -209,6 +209,10 @@ curl "http://localhost:8080/api/permissions/detail?id=<requestId-or-nodeScope>"
 curl -X POST http://localhost:8080/api/permissions/resolve \
   -H 'Content-Type: application/json' \
   -d '{"id": "<id>", "optionType": "ALLOW_ALWAYS"}'
+# To reject with a reason sent to the AI agent:
+curl -X POST http://localhost:8080/api/permissions/resolve \
+  -H 'Content-Type: application/json' \
+  -d '{"id": "<id>", "optionType": "REJECT_ONCE", "note": "Do not write files during discovery phase"}'
 ```
 
 Use `executables/permissions.py` to inspect and batch-resolve permissions in one step.
@@ -216,7 +220,7 @@ Use `executables/permissions.py` to inspect and batch-resolve permissions in one
 **Phase-boundary violations — REJECT and correct:**
 Discovery and planning agents are **read-only**. If a permission request shows a discovery agent, planning orchestrator, or planning agent attempting to write files (e.g., `create_new_file`, `replace_text_in_file`, `Terminal` with `cp`/`cat >`/`mkdir`), this is a phase-boundary violation:
 
-1. **Reject** the permission: `python permissions.py --resolve --option REJECT_ONCE`
+1. **Reject** the permission: `python permissions.py --resolve --option REJECT_ONCE --note "Discovery agents are read-only — do not write files"`
 2. **Send a corrective message** to the specific agent node explaining the violation:
 ```bash
 curl -X POST http://localhost:8080/api/ui/message \

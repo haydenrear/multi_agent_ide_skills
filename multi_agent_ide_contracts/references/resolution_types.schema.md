@@ -22,7 +22,9 @@ Used by: `POST /api/interrupts/resolve` (`resolutionType` field)
 
 Values: `ALLOW_ONCE`, `ALLOW_ALWAYS`, `REJECT_ONCE`, `REJECT_ALWAYS`
 
-Used by: `POST /api/permissions/resolve` (`optionType` field). Controller switch in `PermissionController.performResolution()`.
+Used by: `POST /api/permissions/resolve` (`optionType` field, plus optional `note` string). Controller switch in `PermissionGateService.performPermissionResolution()`.
+
+The `note` field (default `""`) is sent to the AI agent as a message when rejecting (`REJECT_ONCE`/`REJECT_ALWAYS`), explaining why the tool call was denied so the agent can adjust its approach.
 
 ## Propagation resolution types
 
