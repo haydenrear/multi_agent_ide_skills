@@ -118,7 +118,7 @@ Related to #1: the `→ python propagation_detail.py <nodeId> --limit N` hint pr
 
 ## 12. STOP sequence needs finessing — agents retry on invalid JSON, orchestrator vs sub-agent differences
 
-**Problem:** Sending `SEND_MESSAGE` with "STOP" to an agent node doesn't reliably stop it. The LLM may return immediately with an unparseable response, causing the framework to retry.
+**Problem:** Sending `SEND_MESSAGE` with "STOP" to an agent node doesn't reliably stop it. The LLM may return immediately with an unparseable response, causing the framework to retry. Additionally, stop-q needs to propagate to close all acp chat sessions below that ArtifactKey that is the node ID.
 
 **Fix needed — two tiers:**
 
@@ -484,3 +484,35 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 6. **Agent #2 searched outside sandbox** (outstanding #42): Tried to glob the tmp repo path.
 
 **Root cause for agent quality issues:** The goal statement includes 5 design/implementation directives (~250 tokens) that belong in the planning phase, not discovery. Agents conflate "analyze current state" with "design new state." The subdomain focus is too weak to override the goal's prescriptive language.
+
+## 44. Propagator registration requires all matcher fields despite appearing optional in OpenAPI
+
+**Problem:** `POST /api/propagators/registrations` returns `"Name is null"` when `matcherKey`, `matcherType`, or `matcherText` are omitted from `layerBindings[]`. The OpenAPI spec does not mark these as required, and the error message is misleading (it's actually a `NullPointerException` from `Enum.valueOf(null)` in `FilterEnums.MatcherKey.valueOf(binding.getMatcherKey())`).
+
+**Root cause:** `PropagatorRegistrationService.register()` at line 47-50 calls `FilterEnums.MatcherKey.valueOf(binding.getMatcherKey())` without null-checking. Java's `Enum.valueOf()` throws `NullPointerException("Name is null")` when given null.
+
+**Workaround:** Always provide `matcherKey`, `matcherType`, and `matcherText` in every layer binding. Example: `"matcherKey": "NAME", "matcherType": "CONTAINS", "matcherText": "checkPromptHealth"`.
+
+**Fix needed:** Add null-guard in `PropagatorRegistrationService.register()` before the `valueOf()` calls — use a default like `NAME`/`CONTAINS`/`""` when fields are null, or make them required in the OpenAPI schema.
+
+## 45. OpenAPI spec shows wrong enum values for propagator layerBinding matchOn
+
+**Problem:** The OpenAPI spec for `LayerBindingRequest.matchOn` shows only `CONTROLLER_ENDPOINT_RESPONSE` as an allowed value. The actual `PropagatorMatchOn` enum has `ACTION_REQUEST` and `ACTION_RESPONSE`. Using the OpenAPI-documented value fails.
+
+**Root cause:** The `@Schema(allowableValues)` annotation on `LayerBindingRequest.matchOn` in the inner DTO class does not list the correct propagator match-on values, or the schema is being inherited from a different DTO (likely the filter `LayerBindingRequest` which uses `CONTROLLER_ENDPOINT_RESPONSE`).
+
+**Workaround:** Use `ACTION_REQUEST` or `ACTION_RESPONSE` for propagator layer bindings (ignore OpenAPI suggestion).
+
+**Fix needed:** Update the `@Schema` annotation on `PropagatorRegistrationRequest.LayerBindingRequest.matchOn` to list `ACTION_REQUEST, ACTION_RESPONSE`.
+
+## 46. Structured output retry causes ticket agent path confusion and redundant edits
+
+**Problem:** When the LLM fails to produce valid JSON for `TicketAgentRouting` or `CommitAgentResult` (returns empty content instead of JSON), the retry mechanism re-invokes the full LLM conversation. On retry, the LLM produces additional tool calls (file edits, compilation) instead of the required routing JSON. These spurious tool calls target wrong paths (e.g. the tmp repo instead of the worktree) because the agent loses context about its operating directory across retries.
+
+**Observed in:** TICKET-001 had 3 retries for `CommitAgentResult` (03:57-04:01 UTC). TICKET-002 had 2+ retries for `TicketAgentRouting` (03:17-03:21 UTC) followed by the agent re-editing files in `/private/tmp/multi_agent_ide_parent/multi_agent_ide_parent/` instead of its worktree at `/Users/hayde/.multi-agent-ide/worktrees/f594bc08-...`.
+
+**Root cause:** `LlmDataBindingProperties` retries on `MismatchedInputException: No content to map due to end-of-input`. The retry sends the full conversation history back to the LLM, which interprets it as "continue working" rather than "produce the structured JSON output now." The LLM then generates more tool-use calls with degraded path context.
+
+**Workaround:** The code changes are already committed before the routing retry starts, so the redundant edits typically don't damage the repo (working tree is clean). But the retries waste tokens and time.
+
+**Fix needed:** The retry mechanism should (a) strip prior tool-use turns from the retry prompt and only include the structured-output instruction, or (b) add a clear "produce JSON only, no tool calls" directive to the retry prompt, or (c) set `tool_choice: none` on retry attempts for routing/result bindings.
