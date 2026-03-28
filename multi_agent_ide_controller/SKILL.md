@@ -185,6 +185,7 @@ Run tests before deploying code changes:
 - Skip tests that don't cover your change surface.
 - For `multi_agent_ide` integration tests: must use `-Pprofile=integration`, otherwise `**/integration/**` is excluded.
 - For ACP chat model tests in `acp-cdc-ai`: must use `-Pprofile=acp-integration`.
+- Do not run in parallel sub-agents or with async tasks - poll manually every 5-10 mins when running long-running tests.
 
 ### CRITICAL: Use `--info` only when piping Gradle output to a file
 Do not add `--info` for interactive runs. Use it only when redirecting to a log file.

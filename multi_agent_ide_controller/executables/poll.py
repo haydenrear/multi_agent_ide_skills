@@ -180,8 +180,52 @@ def poll_once(host, node_id, limit):
             print(f"    → python interrupts.py {node_id} --resolve APPROVED")
     else:
         print("0 pending")
+    print()
+
+    print("═══ CONVERSATIONS ═══")
+    convos = post(host, "/api/agent-conversations/list", {"nodeId": node_id})
+    if convos:
+        pending_convos = [c for c in convos if c.get("pending")]
+        print(f"{len(convos)} total, {len(pending_convos)} pending")
+        for c in convos:
+            target = c.get("targetKey", "?")
+            agent_type = c.get("agentType", "?")
+            iid = c.get("interruptId", "?")
+            reason = c.get("reason", "")
+            status = "PENDING" if c.get("pending") else "resolved"
+            print(f"  [{status}] {agent_type}  target=...{str(target)[-30:]}  interruptId={iid}")
+            if reason:
+                print(f"    justification: {reason[:150]}")
+            if c.get("pending"):
+                print(f"    → python conversations.py {node_id} --respond --message \"...\" (interruptId={iid})")
+    else:
+        print("0 conversations")
 
     return terminal
+
+
+def subscribe_loop(host, node_id, limit, max_wait, tick):
+    """Activity-check every tick seconds; full poll on activity or timeout (FR-042, FR-043)."""
+    import time
+    elapsed = 0
+    print(f"Subscribing for {max_wait}s — checking every {tick}s — Ctrl-C to stop\n")
+    try:
+        while elapsed < max_wait:
+            result = post(host, "/api/ui/activity-check", {"nodeId": node_id})
+            if result and result.get("hasActivity"):
+                print(f"Activity detected at {elapsed}s — running full poll\n")
+                done = poll_once(host, node_id, limit)
+                if done:
+                    print(f"\n✓ GOAL_COMPLETED — stopping subscribe.")
+                    return
+                elapsed = 0  # reset after activity
+            else:
+                time.sleep(tick)
+                elapsed += tick
+        print(f"Subscribe timeout ({max_wait}s) — running final poll\n")
+        poll_once(host, node_id, limit)
+    except KeyboardInterrupt:
+        print("\nSubscribe stopped.")
 
 
 def main():
@@ -192,12 +236,18 @@ def main():
     parser.add_argument("--host", default="http://localhost:8080", help="App base URL")
     parser.add_argument("--watch", type=int, default=0, metavar="SECS",
                         help="Poll every N seconds until GOAL_COMPLETED or Ctrl-C")
+    parser.add_argument("--subscribe", type=int, default=0, metavar="SECS",
+                        help="Max wait duration — activity-check every --tick seconds, full poll on activity")
+    parser.add_argument("--tick", type=int, default=5, metavar="SECS",
+                        help="Activity-check interval when using --subscribe (default 5)")
     args = parser.parse_args()
 
     host = args.host
     node_id = args.node_id
 
-    if args.watch:
+    if args.subscribe:
+        subscribe_loop(host, node_id, args.limit, args.subscribe, args.tick)
+    elif args.watch:
         import time
         interval = args.watch
         print(f"Watching every {interval}s — Ctrl-C to stop\n")
