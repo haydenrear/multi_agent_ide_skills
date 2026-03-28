@@ -235,6 +235,43 @@ This is part of the self-improvement loop — each session leaves behind better 
 
 ---
 
+## Conversational topology (`conversational-topology/`)
+
+The `conversational-topology/` directory contains the review checklists and gate criteria used when evaluating agent output at each phase transition. These are **living documents** — they evolve as new failure modes are discovered.
+
+### When to consult
+
+- **Every phase gate**: Before approving any phase transition (discovery→planning, planning→tickets, tickets→completion), load and follow the checklists.
+- **After agent justification calls**: When an agent calls `callController` to justify its work, use the justification questions from the agent-specific checklist.
+- **When reviewing propagator signals**: Propagators check form, not substance. The checklists ensure you independently verify semantic correctness.
+
+### How to use
+
+1. Load `conversational-topology/checklist.md` for the general review protocol (extract requirements, map to outputs, check hallucinations, escalation rules)
+2. Load the agent-specific checklist for the current phase:
+   - `checklist-discovery-agent.md` — discovery→planning gate
+   - `checklist-planning-agent.md` — planning→tickets gate
+   - `checklist-ticket-agent.md` — tickets→completion gate
+3. Execute each ACTION row sequentially — stop at the first FAIL
+4. Record your gate decision with evidence
+
+See `conversational-topology/reference.md` for the full document index.
+
+### How to update
+
+When you observe a new failure mode during a session:
+
+1. Add the failure mode to the relevant agent-specific checklist (Common Failure Modes section)
+2. If it warrants a new ACTION row, add it with the appropriate Gate level (FAIL/WARN/ESCALATE)
+3. Record the change in `conversational-topology-history/reference.md` with the date, reason, and session context
+4. Update `conversational-topology/reference.md` change history if the document structure changed
+
+### History tracking (`conversational-topology-history/`)
+
+The `conversational-topology-history/` directory maintains a chronological log of all changes to the topology documents. This enables pattern detection — if the same failure mode keeps appearing, the checklists need stronger gates or the agent prompts need adjustment.
+
+---
+
 ## Self-improvement
 
 This skill is designed to evolve. After every session:

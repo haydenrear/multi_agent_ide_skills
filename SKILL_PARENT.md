@@ -28,6 +28,19 @@ This is the canonical ownership table. When in doubt about which skill to consul
 | Deploy or restart the app | `multi_agent_ide_deploy` → `scripts/deploy_restart.py` |
 | Look up internal type schemas | `multi_agent_ide_contracts` |
 
+## Conversational topology documents
+
+The controller skill includes two directories for phase-gate review:
+
+| Directory | Purpose |
+|-----------|---------|
+| `multi_agent_ide_controller/conversational-topology/` | Review checklists and ACTION tables for each agent type at phase gates |
+| `multi_agent_ide_controller/conversational-topology-history/` | Chronological change log — tracks when and why checklists were updated |
+
+See `multi_agent_ide_controller/SKILL.md` for full usage instructions.
+
+---
+
 ## Loading companion skills
 
 The `multi_agent_ide_controller` skill lists exactly which companions to load at the top of its `SKILL.md`. Follow that list — it is kept up to date as skills evolve.
