@@ -190,6 +190,18 @@ Run tests before deploying code changes:
 ### CRITICAL: Use `--info` only when piping Gradle output to a file
 Do not add `--info` for interactive runs. Use it only when redirecting to a log file.
 
+### Polling pattern for workflow monitoring
+
+**Always use subscribe mode** for workflow monitoring — do not sleep-and-poll:
+```bash
+python executables/poll.py <nodeId> --subscribe 600
+```
+This checks the activity endpoint every 5 seconds and only runs a full poll when something needs attention (permission, interrupt, conversation, propagation, or goal completion). It surfaces blockers immediately and avoids wasted polls.
+
+Use `--tick 10` for a less frequent check interval. The loop auto-stops on `GOAL_COMPLETED`.
+
+**One-shot mode** (`poll.py <nodeId>` without `--subscribe`) is for quick status checks only — not for ongoing monitoring.
+
 ### Polling pattern for long-running test suites
 ```bash
 cd /path/to/module && ./gradlew :multi_agent_ide_java_parent:multi_agent_ide:test -Pprofile=acp-integration --info > /tmp/acp-integration-test.log 2>&1 &

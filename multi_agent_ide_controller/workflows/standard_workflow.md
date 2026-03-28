@@ -105,12 +105,26 @@ curl -X POST http://localhost:8080/api/ui/goals/start \
   }'
 ```
 
-### Step 4 — Poll workflow graph
+### Step 4 — Poll workflow graph (use subscribe mode)
+
+**Primary method — subscribe mode (preferred):**
+```bash
+python executables/poll.py <nodeId> --subscribe 600
+```
+This checks for activity (permissions, interrupts, conversations, propagations) every 5 seconds. When activity is detected, it runs a full poll and prints the result. When a blocker appears (permission, interrupt, conversation needing response), you see it immediately instead of waiting for a sleep cycle. Use `--tick 10` to check less frequently if desired. The loop runs for up to 600 seconds (10 min) then does a final poll — restart it to continue monitoring.
+
+**One-shot mode — for quick status checks:**
+```bash
+python executables/poll.py <nodeId>
+```
+
+**Fallback — raw workflow-graph endpoint:**
 ```bash
 curl -X POST http://localhost:8080/api/ui/workflow-graph \
   -H 'Content-Type: application/json' \
   -d '{"nodeId": "<nodeId>"}'
 ```
+
 Run immediately after `start-goal`, after every `send-message` / action, and after every permission/interrupt resolution. Use `workflow-graph` first to decide if the run is progressing, waiting on input, or stalled.
 
 ### Step 5 — Validate alignment via propagation items (after each agent completes)
@@ -271,11 +285,22 @@ curl -X POST http://localhost:8080/api/propagations/items/<itemId>/resolve \
 
 When a propagator escalates via `AskUserQuestionTool`, it creates an interrupt — resolve via `POST /api/interrupts/resolve` with structured choices in `resolutionNotes`. See `multi_agent_ide_validate_schema` for the `InterruptResolution` schema.
 
-### Step 10 — Continue polling
-Poll every 60 seconds for long-running runs. Watch `workflow-graph` for:
-- `chatMessageEvents` / `toolEvents` growth → progressing → run Step 5 (propagation check)
+### Step 10 — Continue polling (subscribe mode)
+
+**Use subscribe mode** — do not sleep-and-poll manually:
+```bash
+python executables/poll.py <nodeId> --subscribe 600
+```
+
+Subscribe mode checks the activity endpoint every `--tick` seconds (default 5). It prints a full poll **only when activity is detected** — permissions, interrupts, conversations, propagation items, or goal completion. This eliminates wasted polls and surfaces blockers immediately.
+
+When the subscribe loop prints a poll result:
 - `pendingItems` non-empty → waiting for input → run Step 9 (handle blocked states)
-- No growth across 2-3 polls → stalled → load the `multi_agent_ide_debug` skill and follow its triage steps. Check `executables/reference.md` for available log search scripts before doing anything else.
+- New propagation items → run Step 5 (review alignment)
+- `GOAL_COMPLETED` → subscribe auto-stops
+- Subscribe timeout (no activity for the full duration) → check if the run is stalled. Load `multi_agent_ide_debug` skill and follow its triage steps.
+
+**Do not** use `sleep N && poll.py` loops or manual polling intervals. The subscribe mode is strictly better — it responds faster to blockers and avoids unnecessary polls during quiet periods.
 
 ### Step 11 — Review ticket agent work after merge
 

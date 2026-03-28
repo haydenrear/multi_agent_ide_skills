@@ -78,7 +78,8 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 ### Key executables — load these before any session
 
 **Controller monitoring** (`multi_agent_ide_controller/executables/`):
-- `poll.py <nodeId>` — combined one-shot view: graph + propagations + permissions. **Primary polling command.**
+- `poll.py <nodeId> --subscribe 600` — **primary monitoring command**: checks activity every 5s, full poll on activity (permissions, interrupts, conversations, propagations). Auto-stops on goal completion. Use `--subscribe` for all ongoing monitoring — do not sleep-and-poll manually.
+- `poll.py <nodeId>` — one-shot status view (graph + propagations + permissions). Use for quick checks only.
 - `permissions.py [--resolve]` — list and batch-resolve pending permissions with tool names and raw input.
 - `ack_propagations.py <nodeId>` — acknowledge all PENDING propagation items.
 - `validate_propagation.py <nodeId>` — verify propagatedText contains the Propagation record structure.
