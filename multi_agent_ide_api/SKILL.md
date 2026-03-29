@@ -97,6 +97,35 @@ curl -X POST http://localhost:8080/api/ui/workflow-graph \
 | POST | `/api/interrupts/detail` | Get interrupt detail |
 | POST | `/api/interrupts/resolve` | Resolve interrupt (APPROVED/REJECTED/CANCELLED/FEEDBACK/RESOLVED) |
 
+### Agent Conversations (tag: "Agent Conversations")
+
+Agent-to-controller conversation management. When an agent calls `call_controller` for justification, it creates a HUMAN_REVIEW interrupt that appears here as a pending conversation. The controller reviews the agent's justification, responds with feedback, and the agent unblocks.
+
+| Method | Path | Operation |
+|--------|------|-----------|
+| POST | `/api/agent-conversations/list` | List conversations under a node scope (pending and resolved) |
+| POST | `/api/agent-conversations/respond` | Respond to a pending conversation — resolves the interrupt and delivers the message to the blocked agent |
+
+**Key fields on `/respond`:**
+- `interruptId` (required) — the interrupt ID from the conversation list
+- `message` (required) — controller's response text
+- `expectResponse` (default: `true`) — when true, prepends a note telling the agent to reply via `call_controller`. Set `false` for final approvals.
+- `checklistAction` — optional action tag (e.g. `APPROVE`, `REQUEST_CHANGES`) for observability
+
+### UI Activity (tag: "UI Activity")
+
+Lightweight polling endpoint for controller UI — no graph traversal, just counts of pending items.
+
+| Method | Path | Operation |
+|--------|------|-----------|
+| POST | `/api/ui/activity-check` | Fast count of pending permissions, interrupts, and conversations under a node scope |
+
+**Response fields:**
+- `pendingPermissions` — tool permission requests awaiting resolution
+- `pendingInterrupts` — non-HUMAN_REVIEW interrupts (PAUSE, STOP)
+- `pendingConversations` — HUMAN_REVIEW interrupts (agent justification dialogues)
+- `hasActivity` — true if any count > 0 (use for polling loops)
+
 ### Propagators and Propagation (tags: "Propagators", "Propagation Items", "Propagation Records")
 
 **Propagators are the escalatory mechanism for extracting out-of-domain (OOD) and out-of-distribution signals.** When a propagator fires, it means the agent encountered something noteworthy — a deviation, a decision point, or information that should propagate up the supervision hierarchy. These endpoints are among the most informative in the entire API for understanding agent behavior.

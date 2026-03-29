@@ -17,25 +17,30 @@ Use this skill when the running `multi_agent_ide` application is behaving unexpe
 
 ## Log Search Best Practices
 
-**Always use `executables/search_log.py` — do not write inline grep commands.**
+**Always use `executables/error_search.py` — do not write inline grep commands.**
 
 ```bash
-EXEC=skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py
+EXEC=skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py
 
-python $EXEC errors                    # recent errors/exceptions
-python $EXEC node ak:01KK...           # events for a specific nodeId
-python $EXEC goal                      # goal/node completion events
-python $EXEC permission                # permission/interrupt events
-python $EXEC propagation               # propagation events
-python $EXEC overflow                  # DB column overflow errors
-python $EXEC acp                       # ACP/LLM call failures
-python $EXEC "your pattern here"       # raw grep pattern
-python $EXEC errors --follow           # tail live (Ctrl-C to stop)
-python $EXEC errors --build            # search Gradle build log instead
-python $EXEC errors --limit 100        # show more matches
+python $EXEC                           # summary: all known errors with counts + time windows
+python $EXEC --type "NODE_ERROR"       # last 5 matches for NODE_ERROR pattern
+python $EXEC --type 4                  # last 5 matches for pattern at CSV row 4
+python $EXEC --type "Duplicate" --limit 20  # last 20 matches for duplicate key errors
+python $EXEC --acp                     # search ACP error log instead
+python $EXEC --raw "some pattern"      # ad-hoc grep (bypasses CSV)
 ```
 
+Error patterns are defined in `executables/error_patterns.csv` — each row has a grep expression and a description. The summary mode shows count, first/last timestamp, and description for every active pattern.
+
 The script resolves the project root automatically from `tmp_repo.txt`. See `executables/reference.md` for the full listing.
+
+### CRITICAL: Keep error_patterns.csv up to date
+
+**Every time you encounter a new recurring error in the logs that is not already covered by `error_patterns.csv`, you MUST add a new row immediately.** This is vitally important — the CSV is the institutional memory for error detection. If you skip this step, future sessions will miss the same error and waste time rediscovering it. A pattern only needs to appear twice to qualify as "recurring." Add the grep expression and a short description, then verify with `error_search.py --type "<new pattern>"` that it matches.
+
+### Log output suppression
+
+When reviewing log output, **always use `--limit`** to control how many lines are returned. Large error outputs (e.g., 200+ duplicate artifact key errors) will overwhelm context. The summary mode is designed to avoid this — it shows counts and timestamps, not the full lines. Only use detail mode (`--type`) when you need to inspect specific errors, and keep `--limit` low (default 5).
 
 ## Exception knowledge base
 
@@ -83,13 +88,13 @@ When `workflow-graph` shows `NODE_ERROR` events or stalled nodes:
 
 1. **Check runtime log first:**
    ```bash
-   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py errors
-   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py goal
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --type "NODE_ERROR"
    ```
 
 2. **Check ACP errors for LLM call failures:**
    ```bash
-   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py acp
+   python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --acp
    ```
 
 3. **Correlate with event detail:**
@@ -130,8 +135,8 @@ A run is stalled when:
 - No `pendingItems` are visible (not waiting for input — genuinely stuck).
 
 **Recovery steps:**
-1. Check runtime log for exceptions: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py errors`
-2. Check ACP errors for provider/credit failures: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/search_log.py acp`
+1. Check runtime log for exceptions: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py`
+2. Check ACP errors for provider/credit failures: `python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --acp`
 3. Run `event-detail` on the most recent event for the stuck node.
 4. If the agent is looping (same event type repeatedly), check `BlackboardHistory` loop detection — threshold is 3 repetitions.
 5. If unrecoverable: redeploy with `multi_agent_ide_deploy` skill, then restart goal.

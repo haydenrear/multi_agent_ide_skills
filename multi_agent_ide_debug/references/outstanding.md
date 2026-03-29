@@ -516,3 +516,11 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 **Workaround:** The code changes are already committed before the routing retry starts, so the redundant edits typically don't damage the repo (working tree is clean). But the retries waste tokens and time.
 
 **Fix needed:** The retry mechanism should (a) strip prior tool-use turns from the retry prompt and only include the structured-output instruction, or (b) add a clear "produce JSON only, no tool calls" directive to the retry prompt, or (c) set `tool_choice: none` on retry attempts for routing/result bindings.
+
+## 47. Replaced search_log.py with structured error_search.py + error_patterns.csv
+
+**Problem:** `search_log.py` did not work at all — it failed silently or produced no useful output. Controller sessions had no reliable way to search runtime logs for known error patterns.
+
+**Fix applied:** Removed `search_log.py`. Created `error_patterns.csv` (known error grep expressions with descriptions, 20 initial patterns) and `error_search.py` (primary error search tool). Summary mode (default) shows aggregate count, first/last timestamp, and description for each active pattern — avoids context overflow from large error dumps. Detail mode (`--type`) shows last N matches for a specific pattern. Raw mode (`--raw`) for ad-hoc grep. `--acp` flag for ACP error log. Updated all skill files (`debug/SKILL.md`, `SKILL_PARENT.md`, `controller/SKILL.md`, `standard_workflow.md`) to reference the new tool.
+
+**How to maintain:** Add new rows to `error_patterns.csv` when recurring errors are discovered. Always use summary mode first to avoid context overflow, then drill into specific patterns with `--type`.

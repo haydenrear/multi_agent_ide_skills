@@ -57,10 +57,11 @@ def list_conversations(host, node_id, pending_only=False):
             print(f"  justification: {reason[:200]}")
 
 
-def respond_to_conversation(host, interrupt_id, message, checklist_action=None):
+def respond_to_conversation(host, interrupt_id, message, checklist_action=None, expect_response=True):
     body = {
         "interruptId": interrupt_id,
         "message": message,
+        "expectResponse": expect_response,
     }
     if checklist_action:
         body["checklistAction"] = checklist_action
@@ -83,6 +84,8 @@ def main():
     parser.add_argument("--message", type=str, help="Response message (with --respond)")
     parser.add_argument("--interrupt-id", type=str, help="Interrupt ID to respond to (with --respond)")
     parser.add_argument("--checklist-action", type=str, help="Optional checklist action (with --respond)")
+    parser.add_argument("--no-expect-response", action="store_true",
+                        help="Don't tell the agent to respond via call_controller (default: agent is told to respond)")
     args = parser.parse_args()
 
     if args.respond:
@@ -92,7 +95,8 @@ def main():
         if not args.message:
             print("ERROR: --message required with --respond", file=sys.stderr)
             sys.exit(1)
-        respond_to_conversation(args.host, args.interrupt_id, args.message, args.checklist_action)
+        respond_to_conversation(args.host, args.interrupt_id, args.message,
+                                args.checklist_action, not args.no_expect_response)
     else:
         list_conversations(args.host, args.node_id, args.pending)
 

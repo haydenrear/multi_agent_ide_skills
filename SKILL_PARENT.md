@@ -9,7 +9,7 @@ This directory contains all controller skills for operating the `multi_agent_ide
 | `multi_agent_ide_controller` | **Start here.** Full controller loop — submitting goals, polling workflow graph, permission/interrupt resolution, propagation monitoring, self-improvement. **Use this skill for all goal submission and polling operations.** |
 | `multi_agent_ide_deploy` | Clone to `/private/tmp`, sync, deploy, verify, restart. Run before starting any session. |
 | `multi_agent_ide_api` | **Use this for all API interaction.** Swagger-first endpoint discovery via `scripts/api_schema.py`, OpenAPI schema inspection, propagator/filter/transformer registration. **Always use `api_schema.py` to discover endpoint shapes before constructing any curl call — never guess field names.** |
-| `multi_agent_ide_debug` | **Use this for all log searching.** Log locations, `search_log.py` presets (`errors`, `node`, `goal`, `permission`, `propagation`, `overflow`, `acp`), error triage, stall detection. **Never grep the log files directly — use `search_log.py`.** |
+| `multi_agent_ide_debug` | **Use this for all log searching.** Log locations, `error_search.py` (summary + detail modes with `error_patterns.csv`), error triage, stall detection. **Never grep the log files directly — use `error_search.py`.** |
 | `multi_agent_ide_contracts` | Authoritative schemas not available from OpenAPI — `Instruction` sealed interface, resolution enums, propagation types, filter/matcher enums. |
 | `multi_agent_ide_ui_test` | TUI state inspection and UI-level actions. Rarely needed; load only when the controller skill tells you to. |
 
@@ -23,7 +23,7 @@ This is the canonical ownership table. When in doubt about which skill to consul
 | Poll workflow graph | `multi_agent_ide_controller` → `executables/poll.py` |
 | Discover endpoint URL or request shape | `multi_agent_ide_api` → `scripts/api_schema.py` |
 | List or register propagators/filters/transformers | `multi_agent_ide_api` (schema discovery) + `multi_agent_ide_controller` (session scripting) |
-| Search runtime logs or build logs | `multi_agent_ide_debug` → `executables/search_log.py` |
+| Search runtime logs or build logs | `multi_agent_ide_debug` → `executables/error_search.py` |
 | Resolve permissions/interrupts | `multi_agent_ide_controller` → `executables/permissions.py` / `interrupts.py` |
 | Deploy or restart the app | `multi_agent_ide_deploy` → `scripts/deploy_restart.py` |
 | Look up internal type schemas | `multi_agent_ide_contracts` |
@@ -73,7 +73,7 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 | `multi_agent_ide_controller` | `executables/` | `executables/reference.md` | Poll workflow state, inspect/resolve permissions, ack propagations, validate propagation record structure |
 | `multi_agent_ide_api` | `scripts/` | listed in SKILL.md | Query OpenAPI schema, discover endpoints |
 | `multi_agent_ide_deploy` | `scripts/` | listed in SKILL.md | Clone/sync repo, deploy, restart |
-| `multi_agent_ide_debug` | `executables/` | `executables/reference.md` | Log search with named presets (`errors`, `node`, `goal`, `permission`, `propagation`, `overflow`, `acp`) |
+| `multi_agent_ide_debug` | `executables/` | `executables/reference.md` | Error search via `error_search.py` + `error_patterns.csv`, interrupt tracing |
 
 ### Key executables — load these before any session
 
@@ -86,11 +86,12 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 - `propagation_detail.py <nodeId>` — full propagation payload with parsed JSON.
 
 **Debug / log search** (`multi_agent_ide_debug/executables/`):
-- `search_log.py errors` — recent errors and exceptions in the runtime log.
-- `search_log.py node <nodeId>` — all log lines for a specific node.
-- `search_log.py overflow` — DB column overflow errors.
-- `search_log.py acp` — ACP/LLM call failures.
-- `search_log.py --follow` — tail the runtime log live.
+- `error_search.py` — **primary error tool**: aggregate summary of all known error patterns with counts and time windows.
+- `error_search.py --type "NODE_ERROR"` — last 5 matches for a specific error type (substring match on expression or description).
+- `error_search.py --type 4 --limit 20` — last 20 matches for CSV row 4.
+- `error_search.py --acp` — search ACP error log instead of runtime log.
+- `error_search.py --raw "some pattern"` — ad-hoc grep (bypasses CSV).
+- **CRITICAL**: When you encounter a new recurring error not already in `error_patterns.csv`, you **MUST** add a new row immediately. This CSV is the institutional memory for error detection — skipping this step means future sessions will miss the same error.
 
 ### RULE: no inline scripts
 

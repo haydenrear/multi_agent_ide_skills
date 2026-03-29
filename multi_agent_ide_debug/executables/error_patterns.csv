@@ -1,0 +1,21 @@
+error_expression,description
+"ERROR.*Protocol.*Error handling notification",ACP protocol session/update deserialization error — noisy but non-fatal (outstanding #3)
+"Serializer for subclass.*usage_update.*not found",ACP usage_update polymorphic deserialization failure — cosmetic (outstanding #3)
+"Unable to load.*MacOSDnsServerAddressStreamProvider",Netty DNS resolver native lib missing on macOS — falls back to system defaults; harmless
+"Duplicate artifact key in execution",Artifact tree builder encountered duplicate key — may indicate recycled session collision or event replay
+"value too long|character varying|DataIntegrityViolationException",DB column overflow — propagatedText or summaryText exceeds column width (outstanding #4/#15)
+"Prompt is too long",LLM prompt token limit exceeded — usually during planning dispatch with >2 agents (outstanding #7)
+"MismatchedInputException.*No content to map",Structured output retry — LLM returned empty instead of JSON routing (outstanding #46)
+"DegenerateLoopException|degenerate.*loop",Degenerate loop detector fired — same action sequence repeated 6+ times
+"NODE_ERROR",Node error event — agent or routing failure; check event detail for root cause
+"WorktreeMergeResultDecorator.*NODE_ERROR",False NODE_ERROR from merge decorator firing on read-only discovery agents (outstanding #34)
+"GOAL_COMPLETED.*FAILED|goal.*failed",Goal completed with failure status
+"HttpRequestMethodNotSupportedException",Wrong HTTP method used on endpoint — usually a client-side issue (e.g. GET instead of POST)
+"credit|rate.limit|rate_limit|429",API rate limiting or credit exhaustion from LLM provider
+"timeout|timed.out|TimeoutException",Request or LLM call timeout
+"BlackboardHistory.*loop|detectLoop",Blackboard history loop detection triggered — agent may be stuck
+"NullPointerException",Java NPE — always investigate
+"StackOverflowError",Stack overflow — recursive loop in routing or decorator chain
+"OutOfMemoryError|Java heap space",JVM memory exhaustion — too many concurrent agents or large payloads
+"phase.*violation|read.only.*write|REJECT.*discovery",Phase boundary violation — discovery/planning agent attempted file write (outstanding #17/#27/#31/#41)
+"hallucin|invented|fabricat",Agent hallucination detected by propagator or controller

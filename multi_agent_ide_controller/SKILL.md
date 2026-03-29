@@ -6,7 +6,7 @@ description: Executable workflow skill for the full multi_agent_ide controller l
 **Load these companion skills before starting a controller session:**
 - `multi_agent_ide_deploy` — deploy/sync the application
 - `multi_agent_ide_api` — **required for all API interaction**: use `scripts/api_schema.py` to discover endpoint shapes before every new curl call. Covers goal submission, propagator/filter/transformer registration, schema introspection. Never guess field names — always check the live schema first.
-- `multi_agent_ide_debug` — **required for all log searching**: use `executables/search_log.py` with named presets. Never grep log files directly.
+- `multi_agent_ide_debug` — **required for all log searching**: use `executables/error_search.py` for structured error search (summary + detail modes). Never grep log files directly.
 - `multi_agent_ide_contracts` — internal contract reference for types not in OpenAPI (Instruction sealed interface, resolution enums, propagation types, filter/transformer/propagator request shapes); validate before use, update if out of sync
 - `multi_agent_ide_ui_test` — (optional) only if you need TUI state inspection or UI-level actions
 
@@ -118,7 +118,7 @@ Key intuitions:
 - `ArtifactKey` is the universal hierarchical index for everything — sessions, messages, prompts, tool calls, stream deltas. Format: `ak:<ULID>/<ULID>/...`.
 - **Each agent gets its own unique key**, formed as a child of its parent: orchestrator is the root (`ak:ROOT`), discovery orchestrator is a child of that (`ak:ROOT/CHILD_A`), discovery dispatcher is a child of the discovery orchestrator (`ak:ROOT/CHILD_A/CHILD_B`), and so on down the hierarchy.
 - **Recycled sessions**: Orchestrators, collectors, dispatchers, review, merger, context-manager, and **AI propagator** agents **reuse their own previous key** when the workflow routes back to them (e.g. discovery orchestrator on `ROUTE_BACK`). The same ACP session continues — conversation history is preserved. This means a nodeId you see requesting permissions may not be in the current workflow graph tree but is still a live, recycled session from an earlier phase.
-- **AI propagator sessions**: The AI propagator (`AI_PROPAGATOR` agent type, typically claude-haiku-4-5) gets an ArtifactKey as a direct child of the root orchestrator. The session mode is configurable at registration time — by default it recycles (reuses the same key across propagation calls), but other session modes exist. Because propagator sessions appear as direct children of root but are NOT workflow agents, they will **not appear in the workflow graph tree**. When you see a permission from a direct-child nodeId that's not in the graph, check `search_log.py node <nodeId>` for `AI_PROPAGATOR` before assuming it's a stale agent.
+- **AI propagator sessions**: The AI propagator (`AI_PROPAGATOR` agent type, typically claude-haiku-4-5) gets an ArtifactKey as a direct child of the root orchestrator. The session mode is configurable at registration time — by default it recycles (reuses the same key across propagation calls), but other session modes exist. Because propagator sessions appear as direct children of root but are NOT workflow agents, they will **not appear in the workflow graph tree**. When you see a permission from a direct-child nodeId that's not in the graph, check `error_search.py node <nodeId>` for `AI_PROPAGATOR` before assuming it's a stale agent.
 - **Non-recycled (dispatched) agents**: Ticket agents, discovery agents, and planning agents always get a **new** ArtifactKey. These run as parallel dispatch subprocesses — multiple instances can exist simultaneously per fan-out, and it is ill-posed to recycle their sessions.
 - **Sending messages**: Use agent-level nodeIds from `ACTION_STARTED` or `NODE_ADDED` events, or the `chatSessionId / agentNodeId` field from `CHAT_SESSION_CREATED`. Never use the `nodeId` from `CHAT_SESSION_CREATED` (that is the `messageParent` child key, one level below the agent).
 
@@ -185,7 +185,7 @@ Run tests before deploying code changes:
 - Skip tests that don't cover your change surface.
 - For `multi_agent_ide` integration tests: must use `-Pprofile=integration`, otherwise `**/integration/**` is excluded.
 - For ACP chat model tests in `acp-cdc-ai`: must use `-Pprofile=acp-integration`.
-- Do not run in parallel sub-agents or with async tasks - poll manually every 5-10 mins when running long-running tests.
+- Do not run in parallel sub-agents, with async tasks, or as background tasks - poll manually every 5-10 mins when running long-running tests.
 
 ### CRITICAL: Use `--info` only when piping Gradle output to a file
 Do not add `--info` for interactive runs. Use it only when redirecting to a log file.

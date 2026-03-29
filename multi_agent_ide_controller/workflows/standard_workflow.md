@@ -302,6 +302,34 @@ When the subscribe loop prints a poll result:
 
 **Do not** use `sleep N && poll.py` loops or manual polling intervals. The subscribe mode is strictly better — it responds faster to blockers and avoids unnecessary polls during quiet periods.
 
+### Step 10b — Check log for errors (after every 2-3 poll cycles or on stall)
+
+**When to run:** After every 2-3 subscribe poll cycles (roughly every 60-90 seconds of activity), or immediately when the subscribe loop times out with no activity (potential stall).
+
+```bash
+python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py
+```
+
+This prints an aggregate summary: count, time window, and description for every active error pattern. Review for:
+- **New patterns that weren't active before** — something changed
+- **High counts on critical patterns** (NODE_ERROR, NullPointerException, OutOfMemoryError) — investigate immediately
+- **Duplicate artifact key explosion** (200+ matches) — possible session recycling issue; note in `outstanding.md` but may be non-fatal
+- **Rate limiting / timeout patterns** — agents may be stuck waiting on LLM provider
+
+For detail on a specific pattern:
+```bash
+python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --type "NODE_ERROR" --limit 5
+python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --acp  # check ACP/LLM errors separately
+```
+
+**Decision tree:**
+- **No errors or only known-benign patterns** → continue to Step 10 (next poll cycle)
+- **New critical errors** → investigate immediately; if the run is broken, kill the app (`deploy_restart.py --kill-only`), fix, redeploy
+- **Stall with no errors** → check ACP log (`--acp`), check if agent processes are alive, check for unresolved permissions/interrupts
+- **Any error worth tracking** → add to `outstanding.md` per Rule A, and add the pattern to `error_patterns.csv` if not already there
+
+> **Log suppression:** Always use summary mode first. Only drill into detail (`--type`) for specific patterns. Do not dump entire error outputs — they overwhelm context. Keep `--limit` low (default 5).
+
 ### Step 11 — Review ticket agent work after merge
 
 **When to run:** after each ticket agent node transitions to COMPLETED and its merge-back is visible (check `workflow-graph` for the ticket node showing COMPLETED status).
