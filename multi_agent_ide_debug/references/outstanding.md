@@ -524,3 +524,26 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 **Fix applied:** Removed `search_log.py`. Created `error_patterns.csv` (known error grep expressions with descriptions, 20 initial patterns) and `error_search.py` (primary error search tool). Summary mode (default) shows aggregate count, first/last timestamp, and description for each active pattern — avoids context overflow from large error dumps. Detail mode (`--type`) shows last N matches for a specific pattern. Raw mode (`--raw`) for ad-hoc grep. `--acp` flag for ACP error log. Updated all skill files (`debug/SKILL.md`, `SKILL_PARENT.md`, `controller/SKILL.md`, `standard_workflow.md`) to reference the new tool.
 
 **How to maintain:** Add new rows to `error_patterns.csv` when recurring errors are discovered. Always use summary mode first to avoid context overflow, then drill into specific patterns with `--type`.
+
+## 48. poll.py --subscribe did not return on activity — sat for full timeout
+
+**Problem:** `poll.py --subscribe 120` ran for the full 120 seconds without detecting pending permissions, even though the `/api/ui/activity-check` endpoint returned `hasActivity: true` with 3 pending permissions when called manually.
+
+**Root cause:** The subscribe loop on activity detection would poll, reset `elapsed = 0`, sleep, and loop again — never returning control to the caller. If activity persisted (e.g., unresolved permissions), it would loop indefinitely printing full polls. If the activity appeared briefly, the 5s tick could miss it entirely.
+
+**Fix applied:** Changed subscribe loop to `return` immediately after detecting activity and running a full poll. The caller can then take action (approve permissions, review propagations) and restart subscribe for the next window. This matches the intended workflow: subscribe detects → poll prints → caller acts → caller restarts subscribe.
+
+## 49. MCP self-server registers zero tools — topology tools not visible to ACP agents
+
+**Problem:** `call_controller`, `list_agents`, and `call_agent` (from `AgentTopologyTools`) are not visible to ACP agents (Claude Code). Integration test confirmed: agent listed all available tools and none of the topology tools appeared. Production log also shows `"No tool methods found in the provided tool objects: []"`.
+
+**Root cause:** `SpringMcpConfig.tools()` bean injects `List<ToolCarrier>` and filters with `hasToolMethod()` using `getDeclaredMethods()`. The filtered list is empty — meaning either the `ToolCarrier` beans aren't being injected or `hasToolMethod()` is rejecting them (possibly due to CGLIB proxy subclassing where `getDeclaredMethods()` misses annotations on the superclass). Diagnostic logs added to `SpringMcpConfig.tools()` to identify which case.
+
+**Impact:** Critical — no agent can call `call_controller` for justification dialogues. The entire review/justification workflow is broken.
+
+**Diagnostic logs added:**
+- `SpringMcpConfig.tools()`: logs count and class names of injected `ToolCarrier` beans, and count after `hasToolMethod` filter
+- `DefaultLlmRunner.applyToolContext()`: logs all tools in the `ToolContext` per LLM call
+- `AgentTopologyTools.callController()`: logs START/END with sessionId
+
+**Fix needed:** Determine why `hasToolMethod` returns false for `AgentTopologyTools`. If CGLIB proxy issue, change `getDeclaredMethods()` to `getMethods()` or use `AopUtils.getTargetClass()`. If injection issue, check Spring bean ordering.

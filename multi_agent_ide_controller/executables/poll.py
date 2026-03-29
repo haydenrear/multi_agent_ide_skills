@@ -217,9 +217,7 @@ def subscribe_loop(host, node_id, limit, max_wait, tick):
                 done = poll_once(host, node_id, limit)
                 if done:
                     print(f"\n✓ GOAL_COMPLETED — stopping subscribe.")
-                    return
-                elapsed = 0  # reset after activity
-                time.sleep(tick)  # always sleep after poll to avoid tight loop
+                return  # always return on activity so caller can take action
             else:
                 time.sleep(tick)
                 elapsed += tick

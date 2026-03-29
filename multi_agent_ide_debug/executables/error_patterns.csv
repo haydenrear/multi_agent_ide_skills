@@ -19,3 +19,6 @@ error_expression,description
 "OutOfMemoryError|Java heap space",JVM memory exhaustion — too many concurrent agents or large payloads
 "phase.*violation|read.only.*write|REJECT.*discovery",Phase boundary violation — discovery/planning agent attempted file write (outstanding #17/#27/#31/#41)
 "hallucin|invented|fabricat",Agent hallucination detected by propagator or controller
+"No tool methods found in the provided tool objects",MCP self-server registered zero tools — ToolCarrier beans not passing hasToolMethod filter in SpringMcpConfig (outstanding #49)
+"call_controller START",call_controller tool invoked — confirms ACP agent can reach topology tools via MCP
+"Applying tool context.*agentType",DefaultLlmRunner tool context log — shows which tools are in the ToolContext for each LLM call

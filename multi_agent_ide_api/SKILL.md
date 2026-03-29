@@ -40,12 +40,13 @@ python scripts/api_schema.py --level 3 --tag "Debug UI"
 
 ### Best Practices
 - Always start with level 1 to see available groups before drilling down.
-- Use level 3 when constructing a new API call — it shows field names without the full schema noise.
+- Use level 4 when constructing a new API call — it contains the full `components.schemas` with nested objects, enums, and required fields. Extract the schema you need from `components.schemas.<TypeName>`.
+- Use level 3 for a quick overview of endpoint summaries and top-level field names.
 - Run against the live app so you always see the actual deployed schema.
 
 ## Calling Endpoints Directly
 
-Instead of wrapper scripts, call endpoints directly using `curl`, `httpie`, or any HTTP client. Use `api_schema.py --level 3` to discover exact request/response shapes. All endpoints accept and return JSON.
+Instead of wrapper scripts, call endpoints directly using `curl`, `httpie`, or any HTTP client. Use `api_schema.py --level 4` to discover exact request/response schemas (full nested types in `components.schemas`). All endpoints accept and return JSON.
 
 Example:
 ```bash
@@ -190,7 +191,7 @@ Always check `GET /api/filters/attachables` first — it is the source of truth 
 - After any send-message or action, always re-check `workflow-graph` before assuming the run advanced.
 - Poll events at ~60-second intervals; only drill into event-detail when `workflow-graph` shows stalled/error state.
 - `nodeId` scopes requests to that node and all descendant nodes.
-- For schema introspection, prefer `api_schema.py --level 3 --tag <TagName>` — it reflects the live deployed version.
+- For schema introspection, use `api_schema.py --level 4` and extract from `components.schemas.<TypeName>` — it contains the full schema with nested types, enums, and required fields.
 - For schemas not in OpenAPI (filter instruction contracts, resolution enums, internal serialized shapes), see `multi_agent_ide_contracts` skill.
 
 ---
