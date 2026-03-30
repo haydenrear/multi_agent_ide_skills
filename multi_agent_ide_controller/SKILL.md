@@ -251,23 +251,72 @@ This is part of the self-improvement loop — each session leaves behind better 
 
 The `conversational-topology/` directory contains the review checklists and gate criteria used when evaluating agent output at each phase transition. These are **living documents** — they evolve as new failure modes are discovered.
 
+Checklists exist for **all 14 agent types** — see `conversational-topology/reference.md` for the full index organized by phase.
+
 ### When to consult
 
-- **Every phase gate**: Before approving any phase transition (discovery→planning, planning→tickets, tickets→completion), load and follow the checklists.
-- **After agent justification calls**: When an agent calls `callController` to justify its work, use the justification questions from the agent-specific checklist.
+- **Every phase gate**: Before approving any phase transition, load and follow the checklists.
+- **Every agent justification call**: When any agent calls `callController`, use the agent-specific checklist to drive the conversation.
 - **When reviewing propagator signals**: Propagators check form, not substance. The checklists ensure you independently verify semantic correctness.
 
 ### How to use
 
 1. Load `conversational-topology/checklist.md` for the general review protocol (extract requirements, map to outputs, check hallucinations, escalation rules)
-2. Load the agent-specific checklist for the current phase:
-   - `checklist-discovery-agent.md` — discovery→planning gate
-   - `checklist-planning-agent.md` — planning→tickets gate
-   - `checklist-ticket-agent.md` — tickets→completion gate
+2. Load the agent-specific checklist for the agent type that called (e.g. `checklist-orchestrator.md`, `checklist-discovery-agent.md`, `checklist-ticket-collector.md`)
 3. Execute each ACTION row sequentially — stop at the first FAIL
-4. Record your gate decision with evidence
+4. For each response to the agent, include the `--action-name` to track which checklist step you are executing
+5. If there are further checklist items after responding, tell the agent to call back via `call_controller` after addressing your feedback
+6. Record your gate decision with evidence
 
-See `conversational-topology/reference.md` for the full document index.
+### Action name tracking (REQUIRED)
+
+The `--action-name` flag in `conversations.py --respond` is **required**. It records the checklist ACTION step being executed (e.g. `EXTRACT_REQUIREMENTS`, `VERIFY_SCOPE`, `CHECK_ARCHITECTURE`).
+
+This tracking serves two purposes:
+1. **Conversation continuity**: The controller can step through multiple checklist ACTIONs across multiple conversation round-trips with the same agent
+2. **Self-improvement**: By recording which ACTION steps are most frequently exercised, which lead to FAILs, and which agents need the most back-and-forth, we can identify weak points in agent prompts and strengthen them
+
+Example usage:
+```bash
+# Step 1: Ask agent about scope coverage
+python conversations.py <nodeId> --respond \
+  --interrupt-id <id> \
+  --action-name VERIFY_SCOPE \
+  --message "Which files did you examine for requirement 2? Your findings only mention 1 file for a cross-cutting change."
+
+# Step 2 (after agent calls back): Check architecture
+python conversations.py <nodeId> --respond \
+  --interrupt-id <id> \
+  --action-name CHECK_ARCHITECTURE \
+  --message "Good scope coverage now. What architectural patterns connect these components?"
+
+# Step 3 (final approval): No further items
+python conversations.py <nodeId> --respond \
+  --interrupt-id <id> \
+  --action-name APPROVE \
+  --message "All checklist items pass. Proceed with your structured result." \
+  --no-expect-response
+```
+
+### Conversation continuation protocol
+
+When the controller has further checklist items to review:
+
+1. Respond to the agent with feedback on the current ACTION step
+2. End the message with a clear instruction to call back: *"After addressing this, call `call_controller` again with your updated analysis."*
+3. The agent will receive this via the `controller_response.jinja` template, which instructs them to use `call_controller` for follow-ups
+
+When the controller has completed all checklist items:
+
+1. Respond with explicit approval
+2. Use `--no-expect-response` to signal the conversation is complete
+3. The agent will proceed to return its final structured result
+
+When a checklist item FAILs and the issue is critical:
+
+1. Respond with the specific failure and what needs to change
+2. The agent must address the issue and call back — do NOT approve until resolved
+3. If the agent returns its result without calling back, the phase gate should reject it
 
 ### How to update
 
@@ -280,7 +329,7 @@ When you observe a new failure mode during a session:
 
 ### History tracking (`conversational-topology-history/`)
 
-The `conversational-topology-history/` directory maintains a chronological log of all changes to the topology documents. This enables pattern detection — if the same failure mode keeps appearing, the checklists need stronger gates or the agent prompts need adjustment.
+The `conversational-topology-history/` directory is a **changelog for checklist modifications only** — not a session log. Only write to it when you change a checklist file (add a failure mode, add/remove an ACTION row, update red flags). Do not record per-conversation evidence or gate decisions here. This enables pattern detection — if the same failure mode keeps appearing, the checklists need stronger gates or the agent prompts need adjustment.
 
 ---
 

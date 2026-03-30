@@ -5,7 +5,7 @@ conversations.py — CLI for managing agent-to-controller conversations.
 Usage:
     python conversations.py <nodeId>                          # List active conversations
     python conversations.py <nodeId> --pending                # Show only pending conversations
-    python conversations.py <nodeId> --respond --message "..." --interrupt-id <id>  # Respond
+    python conversations.py <nodeId> --respond --message "..." --interrupt-id <id> --action-name <ACTION>  # Respond
     python conversations.py <nodeId> --host http://localhost:8080
 """
 import argparse
@@ -57,20 +57,20 @@ def list_conversations(host, node_id, pending_only=False):
             print(f"  justification: {reason[:200]}")
 
 
-def respond_to_conversation(host, interrupt_id, message, checklist_action=None, expect_response=True):
+def respond_to_conversation(host, interrupt_id, message, action_name, expect_response=True):
     body = {
         "interruptId": interrupt_id,
         "message": message,
         "expectResponse": expect_response,
+        "checklistAction": action_name,
     }
-    if checklist_action:
-        body["checklistAction"] = checklist_action
 
     result = post(host, "/api/agent-conversations/respond", body)
     if result:
         status = result.get("status", "unknown")
         msg = result.get("message", "")
         print(f"Response: {status} — {msg}")
+        print(f"  action: {action_name}")
     else:
         print("Failed to deliver response.", file=sys.stderr)
 
@@ -83,7 +83,10 @@ def main():
     parser.add_argument("--respond", action="store_true", help="Respond to a pending conversation")
     parser.add_argument("--message", type=str, help="Response message (with --respond)")
     parser.add_argument("--interrupt-id", type=str, help="Interrupt ID to respond to (with --respond)")
-    parser.add_argument("--checklist-action", type=str, help="Optional checklist action (with --respond)")
+    parser.add_argument("--action-name", type=str,
+                        help="REQUIRED with --respond: checklist ACTION name being executed "
+                             "(e.g. EXTRACT_REQUIREMENTS, VERIFY_SCOPE, CHECK_ARCHITECTURE). "
+                             "Tracks which checklist step the controller is on for self-improvement.")
     parser.add_argument("--no-expect-response", action="store_true",
                         help="Don't tell the agent to respond via call_controller (default: agent is told to respond)")
     args = parser.parse_args()
@@ -95,8 +98,13 @@ def main():
         if not args.message:
             print("ERROR: --message required with --respond", file=sys.stderr)
             sys.exit(1)
+        if not args.action_name:
+            print("ERROR: --action-name required with --respond. "
+                  "Specify the checklist ACTION step (e.g. EXTRACT_REQUIREMENTS, VERIFY_SCOPE).",
+                  file=sys.stderr)
+            sys.exit(1)
         respond_to_conversation(args.host, args.interrupt_id, args.message,
-                                args.checklist_action, not args.no_expect_response)
+                                args.action_name, not args.no_expect_response)
     else:
         list_conversations(args.host, args.node_id, args.pending)
 

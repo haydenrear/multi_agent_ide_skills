@@ -48,13 +48,37 @@ Do NOT escalate when:
 - The output is consistent with the codebase state
 - Minor style or formatting issues that don't affect correctness
 
-### 6. Record Your Decision
+### 6. Conversation Continuation
 
-After each gate decision:
-- Note which requirements were verified and how
-- If you approved, record what gave you confidence
-- If you rejected, record the specific gap
-- If a new failure mode was observed, update the agent-specific checklist
+The controller drives the review conversation by stepping through ACTION rows one at a time. After each response:
+
+**If there are more checklist items to review:**
+- Include the `--action-name` for the current step when responding via `conversations.py`
+- End your message with: *"After addressing this feedback, call `call_controller` again with your updated response."*
+- The agent will call back, and you proceed to the next ACTION step
+
+**If a checklist item FAILs with a critical issue:**
+- Describe the specific failure and what the agent must change
+- End with: *"Address the above issues and call `call_controller` again. Do not return your result until these are resolved."*
+- Do NOT approve until the agent has remedied the issue and called back
+
+**If all checklist items pass:**
+- Respond with explicit approval and use `--no-expect-response`
+- The agent will proceed to return its final structured result
+- Use `--action-name APPROVE` for tracking
+
+**If you need to escalate to the user:**
+- Do NOT respond to the agent — escalate to the user first
+- After user guidance, resume the conversation with the agent
+
+### 7. Checklist Evolution
+
+Do NOT record per-conversation evidence or session logs. The `conversational-topology-history/` directory is a changelog for checklist changes only.
+
+Update a checklist when you observe a **new failure mode** during a session that is not already captured:
+- Add it to the relevant agent-specific checklist (Common Failure Modes / Red Flags)
+- If it warrants a new ACTION row, add it with the appropriate Gate level
+- Record the change in `conversational-topology-history/reference.md`
 
 ---
 
