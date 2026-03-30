@@ -31,7 +31,7 @@ python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py -
 
 | Operation | Method + Path | Schema source |
 |-----------|--------------|---------------|
-| **Submit a goal** | `POST /api/ui/goals/start` | `api_schema.py --level 3 --tag "Debug UI"` |
+| **Submit a goal** | `POST /api/ui/goals/start` | `api_schema.py --level 3 --tag "Debug UI"` — **repositoryUrl must be a local filesystem path, NOT a GitHub URL** |
 | **Poll workflow graph** | `POST /api/ui/workflow-graph` | same |
 | **Send message to agent** | `POST /api/ui/quick-actions` | same |
 | **List propagator registrations** | `POST /api/propagators/registrations/by-layer` | `api_schema.py --level 3 --tag "Propagators"` |
@@ -44,6 +44,27 @@ python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py -
 | **Resolve interrupt** | `POST /api/interrupts/resolve` | same |
 
 > **IMPORTANT:** The paths above are best-effort references. Always verify against the live spec before use. If a call returns an unexpected response, run `api_schema.py --level 3` for that tag to get the current shape.
+
+---
+
+## Repository paths: always use the tmp repo, never GitHub URLs
+
+The `repositoryUrl` field in goal submission (`POST /api/ui/goals/start`) accepts **local filesystem paths only** — never GitHub URLs. The application clones repos to a tmp directory specifically so agents operate on local checkouts.
+
+- **Tmp repo location**: Read from `/private/tmp/multi_agent_ide_parent/tmp_repo.txt`
+- **For goals against multi_agent_ide_parent**: Use the tmp repo path (e.g. `/private/tmp/multi_agent_ide_parent/multi_agent_ide_parent`)
+- **Why the tmp repo exists**: The application runs from this cloned repo. Goal submissions point agents at this local checkout so they can read/write files, create worktrees, and commit — none of which work with a remote URL.
+
+```bash
+# Correct
+TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt)
+curl -X POST http://localhost:8080/api/ui/goals/start \
+  -d '{"goal": "...", "repositoryUrl": "'"$TMP_REPO"'"}'
+
+# WRONG — will not work
+curl -X POST http://localhost:8080/api/ui/goals/start \
+  -d '{"goal": "...", "repositoryUrl": "https://github.com/haydenrear/multi_agent_ide_parent"}'
+```
 
 ---
 
