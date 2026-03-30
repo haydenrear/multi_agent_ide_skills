@@ -2,6 +2,14 @@
 
 Review criteria for planning agent output at the planning->tickets gate. Planning agents decompose the discovered problem into an implementation plan.
 
+## Core Protocol: Research Before Judging
+
+For every ACTION below, you MUST:
+1. **Research the relevant sources yourself** before evaluating the agent's claims
+2. **Share your findings** with the agent — especially discrepancies or things the agent missed
+3. **Ask the agent to confirm**: acknowledge your insights, update its proposed result, or justify its original position
+4. **Wait for the agent's response** before progressing to the next ACTION
+
 ## Common Failure Modes
 
 1. **Missing traceability**: Plan items don't trace back to specific requirements
@@ -9,30 +17,23 @@ Review criteria for planning agent output at the planning->tickets gate. Plannin
 3. **Under-decomposition**: Complex changes lumped into single tickets that are too large to review
 4. **Ordering errors**: Dependencies between tasks not captured, leading to blocked execution
 5. **Scope creep**: Plan includes "improvements" not in the original goal
+6. **Discovery disconnect**: Plan ignores or contradicts discovery findings
 
 ## ACTION Table
 
-| Step | ACTION | Description | Gate |
-|------|--------|-------------|------|
-| 1 | MAP_TO_REQUIREMENTS | For each plan item, identify which requirement(s) it serves | FAIL if any plan item has no requirement mapping |
-| 2 | VERIFY_COVERAGE | For each requirement, verify at least one plan item addresses it | FAIL if any requirement has no plan item |
-| 3 | CHECK_DEPENDENCIES | Verify plan items are ordered correctly (dependencies before dependents) | FAIL if a task depends on another task that comes after it |
-| 4 | ASSESS_GRANULARITY | Each ticket should be a single reviewable unit of work | FAIL if a ticket touches > 5 files or spans multiple subsystems |
-| 5 | VERIFY_SCOPE | All plan items must trace to the original goal | ESCALATE if plan includes work not in the goal |
-| 6 | CHECK_TEST_STRATEGY | Plan should specify how changes will be verified | WARN if no test strategy mentioned |
-| 7 | VALIDATE_FILE_PATHS | File paths in the plan must exist in the codebase | FAIL if plan references nonexistent files |
-| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
-
-## Justification Questions to Ask
-
-When the planning agent calls `callController` for justification:
-
-- "How does ticket N map to requirement M from the goal?"
-- "Why did you split X into N separate tickets instead of handling it as one?"
-- "What is the dependency order between these tickets?"
-- "This ticket touches files in multiple subsystems - should it be split?"
-- "Is this task (X) part of the original goal, or is it an improvement you identified?"
-- "What's your test strategy for verifying ticket N?"
+| Step | ACTION | What YOU (controller) Research | What to Tell the Agent | Gate |
+|------|--------|-------------------------------|----------------------|------|
+| 1 | EXTRACT_REQUIREMENTS | Read the original goal text yourself | Share your numbered requirements list and ask: "Confirm these are the requirements your plan addresses" | MUST have all requirements listed |
+| 2 | VERIFY_RESULT_PREVIEW | Check that the justification previews the plan structure — ticket count, titles, dependency order | If missing: "I need to see your planned tickets, their dependency order, and which requirements each addresses before I can evaluate" | FAIL if no result preview |
+| 3 | RESEARCH_DISCOVERY_ALIGNMENT | Read the discovery output yourself — compare what was discovered against what the agent plans to change | Share: "Discovery found [architecture pattern X] in [area]. Your plan modifies this area but doesn't account for [pattern]. How does your plan handle this?" | Conversation starter — agent must respond |
+| 4 | RESEARCH_FILE_PATHS | Open the actual files referenced in the plan — verify they exist and contain what the agent claims | Share: "I checked [file] and it [has/doesn't have] the class/method you reference. Also, [related file] seems relevant but isn't in your plan." | Conversation starter — agent must respond |
+| 5 | VERIFY_COVERAGE | After hearing the agent's response, verify each requirement maps to at least one plan item | FAIL if any requirement has no plan item |
+| 6 | CHECK_DEPENDENCIES | Trace the dependency chain yourself — open the files and check what imports/extends what | FAIL if a task depends on another task that comes after it |
+| 7 | ASSESS_GRANULARITY | For each ticket, count the files it touches and check if they span subsystem boundaries | FAIL if a ticket touches > 5 files or spans multiple subsystems without justification |
+| 8 | VERIFY_SCOPE | All plan items must trace to the original goal — flag any "refactor" or "clean up" tasks | Share: "Ticket N says 'refactor X' — I don't see this in the goal. Is this necessary for the goal or is it scope creep?" | ESCALATE if plan includes work not in the goal |
+| 9 | CHECK_TEST_STRATEGY | Verify the plan includes verification steps for each ticket | WARN if no test strategy mentioned |
+| 10 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed — check each against the actual codebase | Share: "You assume [X about the codebase]. I checked and [confirmed/found otherwise]. Update your plan if needed." | Agent must confirm |
+| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Red Flags
 
@@ -42,3 +43,5 @@ When the planning agent calls `callController` for justification:
 - Plan assumes specific implementation approach without justification
 - File paths that don't match the actual project structure
 - Circular dependencies between tickets
+- Plan contradicts discovery findings about architecture or dependencies
+- Agent's justification has no result preview — only reasoning

@@ -2,6 +2,14 @@
 
 Review criteria for the ticket orchestrator agent. This agent translates the finalized plan into ticket agent requests — one per ticket — submitted all at once.
 
+## Core Protocol: Research Before Judging
+
+For every ACTION below, you MUST:
+1. **Research the relevant sources yourself** before evaluating the agent's claims
+2. **Share your findings** with the agent — especially discrepancies or things the agent missed
+3. **Ask the agent to confirm**: acknowledge your insights, update its proposed result, or justify its original position
+4. **Wait for the agent's response** before progressing to the next ACTION
+
 ## Common Failure Modes
 
 1. **Ticket count mismatch**: Agent creates more or fewer requests than tickets in the plan
@@ -12,25 +20,19 @@ Review criteria for the ticket orchestrator agent. This agent translates the fin
 
 ## ACTION Table
 
-| Step | ACTION | Description | Gate |
-|------|--------|-------------|------|
-| 1 | COUNT_MATCH | Verify number of agentRequests equals number of finalized tickets | FAIL if counts don't match |
-| 2 | CHECK_1_TO_1 | Each request maps to exactly one ticket, no merging or splitting | FAIL if any request covers multiple tickets or vice versa |
-| 3 | VERIFY_SELF_CONTAINED | Each request includes full ticket context (no back-references to other requests) | FAIL if any request says "see ticket X" without inline detail |
-| 4 | CHECK_REQUIRED_FIELDS | Each request has ticketId, title, description, tasks, acceptance criteria, key file references | FAIL if any required field is missing |
-| 5 | VALIDATE_ORDERING | Requests are ordered respecting the dependency graph | FAIL if dependent ticket comes before its prerequisite |
-| 6 | VERIFY_WORKTREE_ASSIGNMENT | If parallel execution, each ticket agent should have worktree context | WARN if worktree assignments are missing for parallel tickets |
-| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
-
-## Justification Questions to Ask
-
-When the ticket orchestrator calls `callController` for justification:
-
-- "How many ticket agent requests did you create? Does this match the plan?"
-- "Does each request contain the full context needed for the ticket agent?"
-- "Are the requests ordered according to the dependency graph?"
-- "Did you merge or split any tickets from the plan? Why?"
-- "Do any requests reference other tickets instead of being self-contained?"
+| Step | ACTION | What YOU (controller) Research | What to Tell the Agent | Gate |
+|------|--------|-------------------------------|----------------------|------|
+| 1 | VERIFY_RESULT_PREVIEW | Check that the justification previews the dispatch plan — request count, ticket-to-request mapping, ordering | If missing: "I need to see how many requests you're dispatching, which ticket each maps to, and the execution order" | FAIL if no result preview |
+| 2 | RESEARCH_FINALIZED_PLAN | Read the finalized tickets and dependency graph from the planning collector output yourself | Share: "The plan has [N] finalized tickets with dependency order [X→Y→Z]. Your dispatch has [M] requests — does this match? I notice ticket [T] is missing from your requests." | Conversation starter — agent must respond |
+| 3 | COUNT_MATCH | After the agent responds, verify number of agentRequests equals number of finalized tickets | FAIL if counts don't match |
+| 4 | CHECK_1_TO_1 | Each request maps to exactly one ticket, no merging or splitting | FAIL if any request covers multiple tickets or vice versa |
+| 5 | RESEARCH_REQUEST_CONTEXT | Read each request's content — check that it includes full ticket detail, not back-references | Share: "Request for ticket [T-003] says 'see ticket T-001 for interface details' — this needs to be self-contained. What interface details should be inlined?" | Conversation starter — agent must respond |
+| 6 | VERIFY_SELF_CONTAINED | After the agent responds, confirm each request includes full ticket context | FAIL if any request says "see ticket X" without inline detail |
+| 7 | CHECK_REQUIRED_FIELDS | Each request has ticketId, title, description, tasks, acceptance criteria, key file references | FAIL if any required field is missing |
+| 8 | VALIDATE_ORDERING | Compare request ordering against the dependency graph | FAIL if dependent ticket comes before its prerequisite |
+| 9 | VERIFY_WORKTREE_ASSIGNMENT | If parallel execution, each ticket agent should have worktree context | WARN if worktree assignments are missing for parallel tickets |
+| 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about ticket independence and execution order | Share: "You assume tickets [A] and [B] can run in parallel — I checked the files they touch and [they overlap/they're independent]. Confirm?" | Agent must confirm |
+| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Red Flags
 
@@ -40,3 +42,4 @@ When the ticket orchestrator calls `callController` for justification:
 - Dependency-ordered tickets appear in wrong sequence
 - Agent creates a "setup" or "cleanup" request not in the original plan
 - Ticket descriptions are copy-pasted without adaptation from planning output
+- Agent's justification has no result preview — only reasoning

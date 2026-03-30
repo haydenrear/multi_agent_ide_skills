@@ -2,6 +2,14 @@
 
 Review criteria for the planning dispatch agent. This agent routes planning results to the planning collector, synthesizing multiple planning agent outputs into a single collector input.
 
+## Core Protocol: Research Before Judging
+
+For every ACTION below, you MUST:
+1. **Research the relevant sources yourself** before evaluating the agent's claims
+2. **Share your findings** with the agent — especially discrepancies or things the agent missed
+3. **Ask the agent to confirm**: acknowledge your insights, update its proposed result, or justify its original position
+4. **Wait for the agent's response** before progressing to the next ACTION
+
 ## Common Failure Modes
 
 1. **Lossy consolidation**: Agent drops tickets or implementation details when synthesizing for the collector
@@ -11,23 +19,16 @@ Review criteria for the planning dispatch agent. This agent routes planning resu
 
 ## ACTION Table
 
-| Step | ACTION | Description | Gate |
-|------|--------|-------------|------|
-| 1 | VERIFY_ALL_RESULTS | Check that all planning agent results are present | FAIL if planning results missing or incomplete |
-| 2 | CHECK_TICKET_PRESERVATION | Verify all tickets from all planning agents are preserved in synthesis | FAIL if tickets dropped during consolidation |
-| 3 | DETECT_CONTRADICTIONS | Check for conflicting approaches between planning agents | ESCALATE if agents proposed incompatible strategies |
-| 4 | VALIDATE_ROUTING | Confirm agent routes to planningCollectorRequest (the default) | WARN if routing elsewhere without justification |
-| 5 | ASSESS_COLLECTOR_CONTEXT | Verify enough detail for collector to produce finalizedTickets | FAIL if synthesis lacks ticket descriptions, tasks, or acceptance criteria |
-| 6 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
-
-## Justification Questions to Ask
-
-When the planning dispatch agent calls `callController` for justification:
-
-- "Are all planning agent outputs accounted for in your synthesis?"
-- "Did any planning agents propose conflicting approaches?"
-- "How many total tickets are being forwarded to the collector?"
-- "Why are you routing to X instead of the planning collector?"
+| Step | ACTION | What YOU (controller) Research | What to Tell the Agent | Gate |
+|------|--------|-------------------------------|----------------------|------|
+| 1 | VERIFY_RESULT_PREVIEW | Check that the justification previews the routing target and synthesis content | If missing: "I need to see your routing target and a summary of what you're forwarding to the collector" | FAIL if no result preview |
+| 2 | RESEARCH_RAW_OUTPUTS | Read each planning agent's raw output yourself — note proposed tickets, file paths, and approaches | Share: "Planning agent A proposed [ticket X with approach Y] — is this preserved in your synthesis? Agent B's ticket about [Z] seems missing." | Conversation starter — agent must respond |
+| 3 | VERIFY_ALL_RESULTS | After the agent responds, check that all planning results are accounted for | FAIL if planning results missing or incomplete |
+| 4 | CHECK_TICKET_PRESERVATION | Compare ticket count in synthesis against sum of individual agent outputs | FAIL if tickets dropped during consolidation |
+| 5 | DETECT_CONTRADICTIONS | Check for conflicting approaches between planning agents' outputs | Share: "Agent A proposes [approach X] for [area] but Agent B proposes [approach Y] for the same area. How did you resolve this?" | ESCALATE if agents proposed incompatible strategies |
+| 6 | VALIDATE_ROUTING | Confirm agent routes to planningCollectorRequest (the default) | WARN if routing elsewhere without clear justification |
+| 7 | ASSESS_COLLECTOR_CONTEXT | Check that enough detail is provided for collector to produce finalizedTickets | FAIL if synthesis lacks ticket descriptions, tasks, or acceptance criteria |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Red Flags
 
@@ -35,3 +36,4 @@ When the planning dispatch agent calls `callController` for justification:
 - Agent doesn't mention any planning results by name or content
 - Routing away from collector without raising an interrupt first
 - Agent introduces new tickets not present in any planning agent's output
+- Agent's justification has no result preview — only reasoning

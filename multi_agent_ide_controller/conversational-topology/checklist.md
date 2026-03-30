@@ -2,6 +2,17 @@
 
 General instructions for reviewing agent output at every phase transition. This checklist applies to ALL phase gates regardless of agent type.
 
+## Core Principle: This Is a Refinement Process, Not a Rubber Stamp
+
+The controller is NOT a parliament that approves whatever the agent submits. Every checklist item is a **conversation starter** — a prompt for you to:
+
+1. **Research independently**: Go to the actual sources (codebase, prior agent outputs, goal text) and form your own opinion
+2. **Inject your insights**: Tell the agent what you found, especially where it differs from or adds to what the agent claimed
+3. **Challenge assumptions**: Ask the agent to confirm, update, or justify in light of your findings
+4. **Iterate**: Repeat until the result is genuinely good, not just "good enough"
+
+Each ACTION in the agent-specific checklists has an associated RESEARCH step. You MUST do the research BEFORE evaluating the agent's claims. Do not evaluate claims at face value.
+
 ## Before Approving Any Phase Transition
 
 ### 1. Extract Goal Requirements
@@ -10,7 +21,24 @@ General instructions for reviewing agent output at every phase transition. This 
 - Enumerate each distinct requirement as a numbered item
 - If the goal is ambiguous, escalate to the user BEFORE proceeding
 
-### 2. Map Requirements to Agent Output
+### 2. Verify the Agent Previewed Its Result
+
+The agent's justification must include a **preview of what it plans to return** — not just reasoning about why. If the agent only explains its thought process without describing the concrete result data, send it back:
+
+> "Your justification describes your reasoning but not your proposed result. I need to see what you plan to return — the specific findings/tickets/routing/changes — so I can evaluate the actual output."
+
+### 3. Research Before Evaluating
+
+For EACH checklist item in the agent-specific checklist:
+
+1. **Read the relevant sources yourself** — don't take the agent's word for it
+2. **Form your own opinion** about what the answer should be
+3. **Compare** your findings with the agent's claims
+4. **Share your findings** with the agent, especially discrepancies or additions
+5. **Ask the agent to respond**: confirm receipt, update assumptions, incorporate your research, or justify their original position
+6. **Wait for the agent's response** before moving to the next checklist item
+
+### 4. Map Requirements to Agent Output
 
 For each numbered requirement:
 
@@ -21,20 +49,20 @@ For each numbered requirement:
 - Every requirement must have at least PARTIAL coverage
 - If any requirement is NO, the phase transition MUST be rejected or escalated
 
-### 3. Check for Hallucinated Work
+### 5. Check for Hallucinated Work
 
 - Does the agent claim to have done things not reflected in the actual output?
 - Are file paths, class names, or API endpoints real (verify against codebase)?
 - Does the agent address the STATED goal or a reinterpretation of it?
 
-### 4. Propagator Signals Are Necessary But Not Sufficient
+### 6. Propagator Signals Are Necessary But Not Sufficient
 
 - Propagators check form: duplication, ambiguity, domain relevance
 - Propagators do NOT check substance: does this actually solve the goal?
 - "No escalation" from propagators means the output is well-formed, not correct
 - You MUST independently verify semantic correctness
 
-### 5. Escalation Rules
+### 7. Escalation Rules
 
 Escalate to the user when:
 - Any requirement has NO coverage in the output
@@ -48,14 +76,25 @@ Do NOT escalate when:
 - The output is consistent with the codebase state
 - Minor style or formatting issues that don't affect correctness
 
-### 6. Conversation Continuation
+### 8. Conversation Flow
 
-The controller drives the review conversation by stepping through ACTION rows one at a time. After each response:
+The controller drives the review conversation by stepping through ACTION rows one at a time. For each ACTION:
 
-**If there are more checklist items to review:**
-- Include the `--action-name` for the current step when responding via `conversations.py`
+**Research Phase:**
+1. Do your own research for this checklist item (read code, check files, review prior outputs)
+2. Form your own opinion about what the answer should be
+3. Share your findings with the agent — especially anything the agent missed or got wrong
+4. Include the `--action-name` for the current step when responding via `conversations.py`
+
+**Confirmation Phase:**
+5. Ask the agent to: (a) confirm it received your insights, (b) update its proposed result if needed, (c) justify its original position if it disagrees
+6. Wait for the agent's response via `call_controller`
+7. Evaluate whether the agent adequately addressed your findings
+
+**Progression:**
+- If the agent's response is satisfactory, move to the next ACTION
+- If not, send follow-up feedback on the same ACTION until resolved
 - End your message with: *"After addressing this feedback, call `call_controller` again with your updated response."*
-- The agent will call back, and you proceed to the next ACTION step
 
 **If a checklist item FAILs with a critical issue:**
 - Describe the specific failure and what the agent must change
@@ -71,7 +110,7 @@ The controller drives the review conversation by stepping through ACTION rows on
 - Do NOT respond to the agent — escalate to the user first
 - After user guidance, resume the conversation with the agent
 
-### 7. Checklist Evolution
+### 9. Checklist Evolution
 
 Do NOT record per-conversation evidence or session logs. The `conversational-topology-history/` directory is a changelog for checklist changes only.
 

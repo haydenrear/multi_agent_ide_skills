@@ -48,8 +48,13 @@ This directory contains the review checklists and gate criteria that the control
 
 1. At each phase gate, load `checklist.md` first for the general review protocol
 2. Then load the agent-specific checklist for the current transition
-3. Execute each ACTION row in order — stop at the first FAIL
-4. If a new failure mode is observed, update the agent-specific checklist and log the change in `../conversational-topology-history/reference.md`
+3. For each ACTION row, follow the **Core Protocol: Research Before Judging**:
+   - Research the relevant sources yourself before evaluating the agent's claims
+   - Share your findings with the agent — especially discrepancies or things the agent missed
+   - Ask the agent to confirm: acknowledge your insights, update its proposed result, or justify its original position
+   - Wait for the agent's response before progressing to the next ACTION
+4. Stop at the first FAIL — but treat RESEARCH_* and CHALLENGE_* steps as conversation starters, not gates
+5. If a new failure mode is observed, update the agent-specific checklist and log the change in `../conversational-topology-history/reference.md`
 
 ## Change history
 
@@ -68,14 +73,36 @@ When updating any document in this directory:
 
 ### Full agent coverage — 2026-03-30
 
-- `checklist-orchestrator.md` — 6 ACTION rows, 4 common failure modes, 6 justification questions, 5 red flags
-- `checklist-orchestrator-collector.md` — 7 ACTION rows, 5 common failure modes, 6 justification questions, 6 red flags
-- `checklist-discovery-orchestrator.md` — 6 ACTION rows, 5 common failure modes, 5 justification questions, 5 red flags
-- `checklist-discovery-dispatch.md` — 4 ACTION rows, 4 common failure modes, 4 justification questions, 4 red flags
-- `checklist-discovery-collector.md` — 6 ACTION rows, 5 common failure modes, 5 justification questions, 6 red flags
-- `checklist-planning-orchestrator.md` — 6 ACTION rows, 5 common failure modes, 5 justification questions, 5 red flags
-- `checklist-planning-dispatch.md` — 5 ACTION rows, 4 common failure modes, 4 justification questions, 4 red flags
-- `checklist-planning-collector.md` — 7 ACTION rows, 5 common failure modes, 5 justification questions, 6 red flags
-- `checklist-ticket-orchestrator.md` — 6 ACTION rows, 5 common failure modes, 5 justification questions, 6 red flags
-- `checklist-ticket-dispatch.md` — 5 ACTION rows, 4 common failure modes, 4 justification questions, 5 red flags
-- `checklist-ticket-collector.md` — 8 ACTION rows, 5 common failure modes, 6 justification questions, 7 red flags
+- All 14 agent-specific checklists created with basic ACTION tables
+
+### Research/Insight protocol overhaul — 2026-03-30
+
+Transformed all 14 checklists from rubber-stamp gates into active research/refinement processes:
+
+**Structural changes to every checklist:**
+- Added "Core Protocol: Research Before Judging" header with 4-step research protocol
+- Replaced old ACTION tables (Description + Gate columns) with research-driven tables (What YOU Research + What to Tell the Agent + Gate columns)
+- Added `VERIFY_RESULT_PREVIEW` as early step — agents must preview their planned result, not just explain reasoning
+- Added `CHALLENGE_ASSUMPTIONS` step near the end — controller verifies agent assumptions against actual codebase
+- Added agent-type-specific `RESEARCH_*` steps as conversation starters
+
+**Per-agent research actions added:**
+- Discovery agent: RESEARCH_SCOPE, RESEARCH_ARCHITECTURE (12 ACTION rows)
+- Discovery orchestrator: RESEARCH_CODEBASE_STRUCTURE (10 ACTION rows)
+- Discovery collector: RESEARCH_DISCOVERY_OUTPUTS, RESEARCH_COVERAGE_GAPS (11 ACTION rows)
+- Discovery dispatch: RESEARCH_RAW_OUTPUTS (7 ACTION rows)
+- Planning agent: RESEARCH_DISCOVERY_ALIGNMENT, RESEARCH_FILE_PATHS (11 ACTION rows)
+- Planning orchestrator: RESEARCH_DISCOVERY_OUTPUT (10 ACTION rows)
+- Planning collector: RESEARCH_PLANNING_OUTPUTS, RESEARCH_DEPENDENCY_CHAIN (12 ACTION rows)
+- Planning dispatch: RESEARCH_RAW_OUTPUTS (8 ACTION rows)
+- Ticket agent: RESEARCH_DIFF, RESEARCH_CORRECTNESS, RESEARCH_TEST_COVERAGE (13 ACTION rows)
+- Ticket orchestrator: RESEARCH_FINALIZED_PLAN, RESEARCH_REQUEST_CONTEXT (11 ACTION rows)
+- Ticket collector: RESEARCH_TICKET_RESULTS, RESEARCH_REQUIREMENT_COVERAGE (13 ACTION rows)
+- Ticket dispatch: RESEARCH_RAW_OUTPUTS (8 ACTION rows)
+- Orchestrator: RESEARCH_PHASE_STATE, RESEARCH_COLLECTOR_READINESS (11 ACTION rows)
+- Orchestrator collector: RESEARCH_PHASE_RESULTS, RESEARCH_REQUIREMENT_FULFILLMENT (12 ACTION rows)
+
+**Also updated:**
+- `checklist.md` — added "Core Principle: This Is a Refinement Process", "Verify the Agent Previewed Its Result", and "Research Before Evaluating" sections
+- `_review_justification.jinja` — added Result Preview requirement and refinement process description
+- All 13 justification jinja prompts — added "Result Preview (REQUIRED)" section and "Assumptions" item per agent type
