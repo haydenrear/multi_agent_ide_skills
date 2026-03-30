@@ -22,3 +22,4 @@ error_expression,description
 "No tool methods found in the provided tool objects",MCP self-server registered zero tools — ToolCarrier beans not passing hasToolMethod filter in SpringMcpConfig (outstanding #49)
 "call_controller START",call_controller tool invoked — confirms ACP agent can reach topology tools via MCP
 "Applying tool context.*agentType",DefaultLlmRunner tool context log — shows which tools are in the ToolContext for each LLM call
+"Repository did not exist",Goal start failed — repositoryUrl path does not exist on disk (check sed/template substitution in curl payload)

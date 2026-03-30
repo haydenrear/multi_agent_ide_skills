@@ -547,3 +547,22 @@ Fixed by converting `PropagatorRegistrationRequest` from a Java record to a `@Da
 - `AgentTopologyTools.callController()`: logs START/END with sessionId
 
 **Fix needed:** Determine why `hasToolMethod` returns false for `AgentTopologyTools`. If CGLIB proxy issue, change `getDeclaredMethods()` to `getMethods()` or use `AopUtils.getTargetClass()`. If injection issue, check Spring bean ordering.
+
+## 50. Discovery agent returns prose instead of JSON after call_controller — retry loop
+
+**Problem:** After the discovery agent's `call_controller` permission is approved and the tool executes, the LLM returns prose text (`"I'll conduct a comprehensive discovery analysis of the Java Worktree Infrastructure..."`) instead of the required `DiscoveryAgentRouting` JSON. The `FilteringJacksonOutputConverter` fails to parse this, triggering retry logic (attempt 1 of 10). On retry, the agent gets a fresh prompt context and starts over — calling `call_controller` again with an empty sessionId, which creates a second conversation that doesn't get a controller response.
+
+**Log evidence:**
+```
+18:00:24.663 ERROR FilteringJacksonOutputConverter - Could not parse the given text to the desired target type: "I'll conduct a comprehensive discovery analysis..." into class AgentModels$DiscoveryAgentRouting
+18:00:24.664 WARN  LlmDataBindingProperties - LLM invocation DiscoveryDispatchSubagent.runDiscoveryAgent-DiscoveryAgentRouting: Retry attempt 1 of 10 due to: Invalid LLM return
+17:59:49.044 INFO  AgentTopologyTools - call_controller START — sessionId= justification=## Discovery Analysis Justification
+```
+
+**Root cause:** Same class of issue as the orchestrator prose-output bug fixed in `_review_justification.jinja`. The discovery agent's prompt context after `call_controller` completes doesn't clearly instruct the LLM to return structured JSON. The jinja fix helps for the justification conversation itself, but the underlying issue is that after `call_controller` returns (as a tool result), the LLM sees the tool result and produces a text response rather than the required structured output.
+
+**Impact:** Discovery agent gets stuck in retry loop. Each retry re-invokes the full agent action, which calls `call_controller` again, creating orphaned conversations.
+
+**Workaround:** None currently — the retry will eventually exhaust (10 attempts) and the action will fail.
+
+**Fix needed:** Investigate why the LLM produces text after receiving the `call_controller` tool result. Possible fixes: (1) add explicit system-level instruction in the discovery agent prompt that tool results should not change the output format obligation, (2) ensure `call_controller` tool result includes a reminder about required output format, (3) investigate whether the retry mechanism properly preserves the conversation context including the `call_controller` exchange.
