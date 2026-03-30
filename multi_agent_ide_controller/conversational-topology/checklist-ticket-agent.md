@@ -23,6 +23,7 @@ Review criteria for ticket agent output at the tickets->completion gate. Ticket 
 | 7 | CHECK_COLLATERAL | Review files changed that weren't in the ticket scope | ESCALATE if unrelated changes found |
 | 8 | VERIFY_COMPILATION | Confirm the code compiles after changes | FAIL if compilation errors |
 | 9 | CHECK_SCHEMA_MIGRATION | If JPA entities changed, verify Liquibase changelog updated | FAIL if DB columns added without changeset |
+| 10 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

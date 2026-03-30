@@ -290,10 +290,10 @@ python conversations.py <nodeId> --respond \
   --action-name CHECK_ARCHITECTURE \
   --message "Good scope coverage now. What architectural patterns connect these components?"
 
-# Step 3 (final approval): No further items
+# Step 3 (final approval): All items pass
 python conversations.py <nodeId> --respond \
   --interrupt-id <id> \
-  --action-name APPROVE \
+  --action-name JUSTIFICATION_PASSED \
   --message "All checklist items pass. Proceed with your structured result." \
   --no-expect-response
 ```
@@ -308,9 +308,9 @@ When the controller has further checklist items to review:
 
 When the controller has completed all checklist items:
 
-1. Respond with explicit approval
-2. Use `--no-expect-response` to signal the conversation is complete
-3. The agent will proceed to return its final structured result
+1. Respond with `--action-name JUSTIFICATION_PASSED` and `--no-expect-response`
+2. The agent is programmed to wait for `JUSTIFICATION_PASSED` before returning its final result
+3. This is the only signal that unblocks the agent — any other action name keeps the review open
 
 When a checklist item FAILs and the issue is critical:
 

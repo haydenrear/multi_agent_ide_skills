@@ -20,6 +20,7 @@ Review criteria for the ticket orchestrator agent. This agent translates the fin
 | 4 | CHECK_REQUIRED_FIELDS | Each request has ticketId, title, description, tasks, acceptance criteria, key file references | FAIL if any required field is missing |
 | 5 | VALIDATE_ORDERING | Requests are ordered respecting the dependency graph | FAIL if dependent ticket comes before its prerequisite |
 | 6 | VERIFY_WORKTREE_ASSIGNMENT | If parallel execution, each ticket agent should have worktree context | WARN if worktree assignments are missing for parallel tickets |
+| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

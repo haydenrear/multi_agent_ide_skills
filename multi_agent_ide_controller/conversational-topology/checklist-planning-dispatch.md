@@ -18,6 +18,7 @@ Review criteria for the planning dispatch agent. This agent routes planning resu
 | 3 | DETECT_CONTRADICTIONS | Check for conflicting approaches between planning agents | ESCALATE if agents proposed incompatible strategies |
 | 4 | VALIDATE_ROUTING | Confirm agent routes to planningCollectorRequest (the default) | WARN if routing elsewhere without justification |
 | 5 | ASSESS_COLLECTOR_CONTEXT | Verify enough detail for collector to produce finalizedTickets | FAIL if synthesis lacks ticket descriptions, tasks, or acceptance criteria |
+| 6 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

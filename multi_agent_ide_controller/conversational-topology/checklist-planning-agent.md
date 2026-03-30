@@ -21,6 +21,7 @@ Review criteria for planning agent output at the planning->tickets gate. Plannin
 | 5 | VERIFY_SCOPE | All plan items must trace to the original goal | ESCALATE if plan includes work not in the goal |
 | 6 | CHECK_TEST_STRATEGY | Plan should specify how changes will be verified | WARN if no test strategy mentioned |
 | 7 | VALIDATE_FILE_PATHS | File paths in the plan must exist in the codebase | FAIL if plan references nonexistent files |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

@@ -63,9 +63,9 @@ The controller drives the review conversation by stepping through ACTION rows on
 - Do NOT approve until the agent has remedied the issue and called back
 
 **If all checklist items pass:**
-- Respond with explicit approval and use `--no-expect-response`
-- The agent will proceed to return its final structured result
-- Use `--action-name APPROVE` for tracking
+- Respond with `--action-name JUSTIFICATION_PASSED` and `--no-expect-response`
+- The agent is instructed to only return its final structured result after receiving `JUSTIFICATION_PASSED`
+- This is the terminal signal — do not send it until you are satisfied with the agent's work
 
 **If you need to escalate to the user:**
 - Do NOT respond to the agent — escalate to the user first

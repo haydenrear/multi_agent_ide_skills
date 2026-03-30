@@ -18,6 +18,7 @@ Review criteria for the ticket dispatch agent. This agent routes ticket executio
 | 3 | VALIDATE_SUCCESS_CLAIMS | Cross-reference success claims against actual ticket output | FAIL if agent claims success for tickets that failed |
 | 4 | VALIDATE_ROUTING | Confirm agent routes to ticketCollectorRequest (the default) | WARN if routing elsewhere without justification |
 | 5 | ASSESS_COLLECTOR_CONTEXT | Verify synthesis includes enough detail for collector to assess completeness | FAIL if collector can't determine what was actually implemented |
+| 6 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

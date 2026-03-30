@@ -20,6 +20,7 @@ Review criteria for the discovery collector agent. This agent consolidates disco
 | 4 | VERIFY_DECISION_TYPE | Check that ADVANCE_PHASE or ROUTE_BACK matches the actual state of findings | FAIL if advancing with known gaps or routing back with comprehensive findings |
 | 5 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify agent raised interrupt first (not direct ROUTE_BACK) | FAIL if ROUTE_BACK set without prior interrupt/review |
 | 6 | VALIDATE_REQUESTED_PHASE | If advancing, requestedPhase must be "PLANNING" | FAIL if advancing to wrong phase |
+| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

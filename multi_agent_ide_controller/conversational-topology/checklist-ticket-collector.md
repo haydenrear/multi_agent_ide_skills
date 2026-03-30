@@ -22,6 +22,7 @@ Review criteria for the ticket collector agent. This agent summarizes completed/
 | 6 | VERIFY_DECISION_TYPE | ADVANCE_PHASE → requestedPhase = "COMPLETE"; ROUTE_BACK → specific ticket gaps | FAIL if decision type contradicts evidence |
 | 7 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify interrupt was raised first | FAIL if ROUTE_BACK without prior interrupt/review |
 | 8 | ASSESS_COMPLETENESS_HONESTLY | Does the actual implementation match the goal, or are there real gaps? | ESCALATE if gaps exist but agent claims completion |
+| 9 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

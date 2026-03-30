@@ -20,6 +20,7 @@ Review criteria for the discovery orchestrator agent. This agent decomposes the 
 | 4 | VALIDATE_ORDERING | Verify foundational discovery is first, higher-level is later | FAIL if ordering would cause repeated work |
 | 5 | CHECK_PRIOR_SUMMARY | If multiple agents, verify later agents receive prior agent context via priorAgentSummary | FAIL if sequential agents lack prior context |
 | 6 | VERIFY_GOAL_FIDELITY | Compare discovery request goals with the original goal | FAIL if discovery requests address a different problem |
+| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

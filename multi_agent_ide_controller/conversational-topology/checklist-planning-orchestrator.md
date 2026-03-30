@@ -20,6 +20,7 @@ Review criteria for the planning orchestrator agent. This agent decomposes the g
 | 4 | CHECK_SCOPE_BOUNDARIES | If multiple agents, verify non-overlapping implementation tracks | FAIL if scope overlaps between planning agents |
 | 5 | VERIFY_STRUCTURED_OUTPUT | Confirm agent returns structured output, not file writes or tool calls | FAIL if agent attempts to write files |
 | 6 | VALIDATE_INDEPENDENCE | If multiple agents, verify each track can be planned independently | FAIL if tracks have implicit cross-dependencies |
+| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

@@ -21,6 +21,7 @@ Review criteria for the planning collector agent. This agent finalizes tickets, 
 | 5 | VERIFY_STRUCTURED_OUTPUT | Confirm output uses structured fields, not file writes | FAIL if agent writes files instead of returning schema |
 | 6 | VALIDATE_DECISION | If ADVANCE_PHASE, requestedPhase must be "TICKETS" | FAIL if advancing to wrong phase |
 | 7 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify interrupt was raised first | FAIL if ROUTE_BACK without prior interrupt/review |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

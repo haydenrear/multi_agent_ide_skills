@@ -17,6 +17,7 @@ Review criteria for the discovery dispatch agent. This agent routes discovery re
 | 2 | CHECK_SYNTHESIS_QUALITY | Verify the dispatch synthesis preserves key findings from each agent | FAIL if important findings dropped |
 | 3 | VALIDATE_ROUTING | Confirm agent routes to collectorRequest (the default) | WARN if routing elsewhere without clear justification |
 | 4 | ASSESS_COLLECTOR_CONTEXT | Check that enough context is provided for collector's ADVANCE/ROUTE_BACK decision | FAIL if collector input lacks findings summary |
+| 5 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

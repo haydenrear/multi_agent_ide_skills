@@ -20,6 +20,7 @@ Review criteria for discovery agent output at the discovery->planning gate. Disc
 | 5 | ASSESS_COMPLETENESS | Map each finding back to a requirement | FAIL if any requirement has zero findings |
 | 6 | CHECK_INTERPRETATION | Compare agent's interpretation of the goal with the original intent | FAIL if agent solved a different problem |
 | 7 | FLAG_GAPS | List any requirements without adequate coverage | ESCALATE to user if gaps found |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

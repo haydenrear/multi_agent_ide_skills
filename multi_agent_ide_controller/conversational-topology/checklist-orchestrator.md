@@ -19,6 +19,7 @@ Review criteria for the top-level orchestrator agent. The orchestrator routes th
 | 4 | VALIDATE_PHASE_PROGRESSION | Verify the orchestrator is advancing the workflow, not looping | FAIL if same routing decision made 3+ times without progress |
 | 5 | CHECK_COLLECTOR_READINESS | If routing to collector, verify all phases (discovery, planning, tickets) completed | FAIL if routing to collector with incomplete phases |
 | 6 | ASSESS_INTERRUPT_JUSTIFICATION | If routing to interrupt, verify the reason is legitimate | ESCALATE if interrupt seems like stalling rather than genuine ambiguity |
+| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 

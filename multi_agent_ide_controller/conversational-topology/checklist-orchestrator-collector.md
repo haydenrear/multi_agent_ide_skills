@@ -21,6 +21,7 @@ Review criteria for the orchestrator collector agent. This is the final consolid
 | 5 | VALIDATE_CONSOLIDATED_OUTPUT | Check that the consolidated output accurately reflects all phase results | FAIL if output contradicts or omits phase findings |
 | 6 | ASSESS_ROUTE_BACK | If agent proposes ROUTE_BACK, verify the gaps are real and specific | ESCALATE if route-back reason is vague |
 | 7 | CHECK_DECISION_TYPE | Verify decisionType matches the actual state (ADVANCE_PHASE vs ROUTE_BACK) | FAIL if marking COMPLETE with known gaps |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
 
 ## Justification Questions to Ask
 
