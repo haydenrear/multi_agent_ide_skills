@@ -54,7 +54,9 @@ def list_conversations(host, node_id, pending_only=False):
         print(f"  target=...{str(target)[-40:]}")
         print(f"  interruptId={iid}")
         if reason:
-            print(f"  justification: {reason[:200]}")
+            print(f"  justification:")
+            for line in reason.splitlines():
+                print(f"    {line}")
 
 
 def respond_to_conversation(host, interrupt_id, message, action_name, expect_response=True):
