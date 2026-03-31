@@ -30,8 +30,9 @@ For every ACTION below, you MUST:
 | 6 | VALIDATE_ORDERING | Check whether foundational code (models, interfaces, config) is assigned to earlier agents | FAIL if ordering would cause repeated work |
 | 7 | CHECK_PRIOR_SUMMARY | If multiple agents, verify later agents receive prior agent context | FAIL if sequential agents lack prior context |
 | 8 | VERIFY_GOAL_FIDELITY | Compare discovery request goals with the original goal word-for-word | Share any drift: "The original goal says X but your agent request says Y — is this intentional?" | FAIL if discovery requests address a different problem |
-| 9 | CHALLENGE_ASSUMPTIONS | Review assumptions about codebase structure and independence of tracks | Share: "You assumed X and Y are independent — I checked and [they share/don't share] dependencies" | Agent must confirm |
-| 10 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 9 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about codebase structure and independence of tracks | Share: "You assumed X and Y are independent — I checked and [they share/don't share] dependencies" | Agent must confirm |
+| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

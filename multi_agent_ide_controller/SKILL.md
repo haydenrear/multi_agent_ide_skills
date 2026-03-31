@@ -327,10 +327,24 @@ When the controller has further checklist items to review:
 2. End the message with a clear instruction to call back: *"After addressing this, call `call_controller` again with your updated analysis."*
 3. The agent will receive this via the `controller_response.jinja` template, which instructs them to use `call_controller` for follow-ups
 
+### CRITICAL: INJECT_RESEARCH before JUSTIFICATION_PASSED
+
+The `controller_response.jinja` template matches on `JUSTIFICATION_PASSED` (and `APPROVED`) and instructs the agent to **immediately return its structured JSON result without calling `call_controller` again**. This means:
+
+- **NEVER include new information in a JUSTIFICATION_PASSED message.** If you share new findings, corrections, or context in the same message as JUSTIFICATION_PASSED, the agent receives two conflicting signals: "integrate this new information" and "return your result immediately without calling back." This causes the agent to either loop (calling `call_controller` to confirm the new information) or drop the information entirely.
+- **Use `INJECT_RESEARCH` (or any other non-terminal action) to share findings first.** This action expects a confirmation response — the agent will call `call_controller` again to confirm it received and integrated your research. Wait for this confirmation.
+- **Only after the agent has confirmed integration**, send `JUSTIFICATION_PASSED` with `--no-expect-response`. The JUSTIFICATION_PASSED message should contain only the approval signal and optionally a reminder about the JSON output schema. No new facts, no corrections, no additional context.
+
+The conversation flow is:
+1. Step through checklist ACTIONs (EXTRACT_REQUIREMENTS, VERIFY_SCOPE, etc.)
+2. When you have codebase research to share → `--action-name INJECT_RESEARCH` (expects response)
+3. Agent confirms receipt and integrates findings → calls `call_controller`
+4. When satisfied with the refined result → `--action-name JUSTIFICATION_PASSED --no-expect-response` (terminal, no new info)
+
 When the controller has completed all checklist items:
 
 1. Respond with `--action-name JUSTIFICATION_PASSED` and `--no-expect-response`
-2. The agent is programmed to wait for `JUSTIFICATION_PASSED` before returning its final result
+2. **Do NOT include any new information** — only the approval. The template instructs the agent to return JSON immediately
 3. This is the only signal that unblocks the agent — any other action name keeps the review open
 
 When a checklist item FAILs and the issue is critical:

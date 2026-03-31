@@ -28,7 +28,8 @@ For every ACTION below, you MUST:
 | 5 | VALIDATE_SUCCESS_CLAIMS | Cross-reference success claims against actual ticket output — look for partial implementations claimed as complete | FAIL if agent claims success for tickets that failed |
 | 6 | VALIDATE_ROUTING | Confirm agent routes to ticketCollectorRequest (the default) | WARN if routing elsewhere without justification |
 | 7 | ASSESS_COLLECTOR_CONTEXT | Verify synthesis includes enough detail for collector to assess what was actually implemented | FAIL if collector can't determine what was actually implemented |
-| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 8 | INJECT_RESEARCH | Share your independent research findings — corrections, additional context the agent missed | Share all findings. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 9 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

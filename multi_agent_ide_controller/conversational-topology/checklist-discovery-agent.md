@@ -30,9 +30,10 @@ For every ACTION below, you MUST:
 | 7 | VALIDATE_FINDINGS | Cross-reference agent's claims against actual codebase state using your own research | FAIL if agent claims exist that can't be verified |
 | 8 | ASSESS_COMPLETENESS | Map each finding back to a requirement using both your research and the agent's | FAIL if any requirement has zero findings |
 | 9 | CHECK_INTERPRETATION | Compare agent's interpretation of the goal with the original intent | FAIL if agent solved a different problem |
-| 10 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed and verify each one | Share: "Your assumption about X — I checked and [confirmed/found otherwise]. Update your result accordingly." | Agent must confirm |
-| 11 | FLAG_GAPS | List any requirements without adequate coverage | ESCALATE to user if gaps found |
-| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 11 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed and verify each one | Share: "Your assumption about X — I checked and [confirmed/found otherwise]. Update your result accordingly." | Agent must confirm |
+| 12 | FLAG_GAPS | List any requirements without adequate coverage | ESCALATE to user if gaps found |
+| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

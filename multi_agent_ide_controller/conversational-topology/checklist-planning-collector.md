@@ -33,8 +33,9 @@ For every ACTION below, you MUST:
 | 8 | VERIFY_STRUCTURED_OUTPUT | Confirm output uses structured fields, not file writes | FAIL if agent writes files instead of returning schema |
 | 9 | VALIDATE_DECISION | If ADVANCE_PHASE, requestedPhase must be "TICKETS" | FAIL if advancing to wrong phase |
 | 10 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify agent raised interrupt first | FAIL if ROUTE_BACK without prior interrupt/review |
-| 11 | CHALLENGE_ASSUMPTIONS | Review assumptions about ticket completeness and dependency ordering | Share: "You assume the tickets cover all requirements — I mapped them and [found gap/confirmed coverage]. Update if needed." | Agent must confirm |
-| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 11 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 12 | CHALLENGE_ASSUMPTIONS | Review assumptions about ticket completeness and dependency ordering | Share: "You assume the tickets cover all requirements — I mapped them and [found gap/confirmed coverage]. Update if needed." | Agent must confirm |
+| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

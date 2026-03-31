@@ -34,8 +34,9 @@ For every ACTION below, you MUST:
 | 9 | VERIFY_DECISION_TYPE | ADVANCE_PHASE → requestedPhase = "COMPLETE"; ROUTE_BACK → specific ticket gaps | FAIL if decision type contradicts evidence |
 | 10 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify interrupt was raised first | FAIL if ROUTE_BACK without prior interrupt/review |
 | 11 | ASSESS_COMPLETENESS_HONESTLY | Does the actual implementation match the goal, or are there real gaps? | ESCALATE if gaps exist but agent claims completion |
-| 12 | CHALLENGE_ASSUMPTIONS | Review assumptions about implementation completeness | Share: "You assume all requirements are met — I checked the commits for requirement [N] and [confirmed/found gap]. Update your assessment if needed." | Agent must confirm |
-| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 12 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 13 | CHALLENGE_ASSUMPTIONS | Review assumptions about implementation completeness | Share: "You assume all requirements are met — I checked the commits for requirement [N] and [confirmed/found gap]. Update your assessment if needed." | Agent must confirm |
+| 14 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

@@ -30,8 +30,9 @@ For every ACTION below, you MUST:
 | 7 | RESEARCH_COLLECTOR_READINESS | If routing to collector, check all phase results yourself — discovery findings, finalized tickets, ticket execution results | Share: "You're routing to collector. I checked: discovery [complete/incomplete], planning [N tickets finalized], tickets [M completed, K failed]. Is this sufficient for completion?" | Conversation starter — agent must respond |
 | 8 | CHECK_COLLECTOR_READINESS | After the agent responds, verify all phases completed before collector routing | FAIL if routing to collector with incomplete phases |
 | 9 | ASSESS_INTERRUPT_JUSTIFICATION | If routing to interrupt, verify the reason is legitimate and specific | ESCALATE if interrupt seems like stalling rather than genuine ambiguity |
-| 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about workflow state and readiness | Share: "You assume [phase X] is complete — I checked the results and [confirmed/found gap]. Update your routing if needed." | Agent must confirm |
-| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 11 | CHALLENGE_ASSUMPTIONS | Review assumptions about workflow state and readiness | Share: "You assume [phase X] is complete — I checked the results and [confirmed/found gap]. Update your routing if needed." | Agent must confirm |
+| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

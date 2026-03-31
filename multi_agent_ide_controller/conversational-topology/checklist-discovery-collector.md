@@ -31,8 +31,9 @@ For every ACTION below, you MUST:
 | 7 | VERIFY_DECISION_TYPE | Check that ADVANCE_PHASE or ROUTE_BACK matches the actual state of findings | FAIL if advancing with known gaps or routing back with comprehensive findings |
 | 8 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify agent raised interrupt first | FAIL if ROUTE_BACK set without prior interrupt/review |
 | 9 | VALIDATE_REQUESTED_PHASE | If advancing, requestedPhase must be "PLANNING" | FAIL if advancing to wrong phase |
-| 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about discovery completeness | Share: "You assume discovery is sufficient for planning — I checked [area] and [found gap/confirmed coverage]. Update if needed." | Agent must confirm |
-| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 11 | CHALLENGE_ASSUMPTIONS | Review assumptions about discovery completeness | Share: "You assume discovery is sufficient for planning — I checked [area] and [found gap/confirmed coverage]. Update if needed." | Agent must confirm |
+| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

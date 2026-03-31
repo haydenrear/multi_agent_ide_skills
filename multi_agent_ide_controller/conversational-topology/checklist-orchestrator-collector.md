@@ -32,8 +32,9 @@ For every ACTION below, you MUST:
 | 8 | VALIDATE_CONSOLIDATED_OUTPUT | Check that the consolidated output accurately reflects all phase results | FAIL if output contradicts or omits phase findings |
 | 9 | ASSESS_ROUTE_BACK | If agent proposes ROUTE_BACK, verify the gaps are real and specific | ESCALATE if route-back reason is vague |
 | 10 | CHECK_DECISION_TYPE | Verify decisionType matches the actual state | FAIL if marking COMPLETE with known gaps |
-| 11 | CHALLENGE_ASSUMPTIONS | Review assumptions about goal completion — check the actual code state | Share: "You assume the goal is fully met. I checked [specific area] and [confirmed/found that requirement N is not fully addressed]. Update your decision if needed." | Agent must confirm |
-| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 11 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 12 | CHALLENGE_ASSUMPTIONS | Review assumptions about goal completion — check the actual code state | Share: "You assume the goal is fully met. I checked [specific area] and [confirmed/found that requirement N is not fully addressed]. Update your decision if needed." | Agent must confirm |
+| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

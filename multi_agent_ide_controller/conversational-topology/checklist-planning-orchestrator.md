@@ -30,8 +30,9 @@ For every ACTION below, you MUST:
 | 6 | CHECK_SCOPE_BOUNDARIES | Compare each agent's scope against the discovered module boundaries | Share: "Planning agent A's scope overlaps with agent B in [area discovered by discovery]. How will you prevent duplicate work?" | FAIL if scope overlaps between planning agents |
 | 7 | VERIFY_STRUCTURED_OUTPUT | Confirm agent returns structured PlanningAgentRequests, not file writes | FAIL if agent attempts to write files |
 | 8 | VALIDATE_INDEPENDENCE | If multiple agents, verify each track can be planned independently based on discovery findings | FAIL if tracks have implicit cross-dependencies |
-| 9 | CHALLENGE_ASSUMPTIONS | Review assumptions about implementation track independence — check the discovered dependencies | Share: "You assume tracks A and B are independent — discovery found [shared dependency]. Does this change your decomposition?" | Agent must confirm |
-| 10 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 9 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about implementation track independence — check the discovered dependencies | Share: "You assume tracks A and B are independent — discovery found [shared dependency]. Does this change your decomposition?" | Agent must confirm |
+| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

@@ -33,8 +33,9 @@ For every ACTION below, you MUST:
 | 9 | CHECK_COLLATERAL | Review files changed that weren't in the ticket scope | ESCALATE if unrelated changes found |
 | 10 | VERIFY_COMPILATION | Confirm the code compiles after changes | FAIL if compilation errors |
 | 11 | CHECK_SCHEMA_MIGRATION | If JPA entities changed, verify Liquibase changelog updated | FAIL if DB columns added without changeset |
-| 12 | CHALLENGE_ASSUMPTIONS | Review the agent's assumptions about the change's impact | Share: "You assume [X] about [downstream consumers/callers]. I checked and [confirmed/found otherwise]. Update if needed." | Agent must confirm |
-| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 12 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 13 | CHALLENGE_ASSUMPTIONS | Review the agent's assumptions about the change's impact | Share: "You assume [X] about [downstream consumers/callers]. I checked and [confirmed/found otherwise]. Update if needed." | Agent must confirm |
+| 14 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

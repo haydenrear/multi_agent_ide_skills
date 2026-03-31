@@ -39,6 +39,16 @@ The controller skill includes two directories for phase-gate review:
 
 See `multi_agent_ide_controller/SKILL.md` for full usage instructions.
 
+### CRITICAL: JUSTIFICATION_PASSED vs INJECT_RESEARCH protocol
+
+The `controller_response.jinja` template matches on the action name `JUSTIFICATION_PASSED` (and `APPROVED`) and instructs the agent to **immediately return its structured JSON result without calling `call_controller` again**. This has critical implications for how the controller shares information with agents:
+
+- **NEVER include new information in a JUSTIFICATION_PASSED message.** New findings, corrections, or context in a JUSTIFICATION_PASSED message create a conflict: the agent wants to integrate the information (which requires calling back) but is told to return immediately. This causes looping or dropped information.
+- **Use `INJECT_RESEARCH` to share all new information.** This action expects the agent to confirm receipt, integrate the findings into its proposed result, and call `call_controller` again. Only after the agent has confirmed integration and you are satisfied with the refined result should you send JUSTIFICATION_PASSED.
+- **JUSTIFICATION_PASSED is purely a terminal approval signal.** It should confirm the already-integrated result and may include a reminder about JSON output format, but must not contain anything the agent needs to act on.
+
+The flow is: checklist ACTIONs → INJECT_RESEARCH (expects confirmation) → agent integrates and calls back → verify refined result → JUSTIFICATION_PASSED (terminal, no new info, `--no-expect-response`).
+
 ---
 
 ## Loading companion skills

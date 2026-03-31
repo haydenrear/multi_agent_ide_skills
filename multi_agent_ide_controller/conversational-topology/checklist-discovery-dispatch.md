@@ -27,7 +27,8 @@ For every ACTION below, you MUST:
 | 4 | CHECK_SYNTHESIS_QUALITY | Compare synthesis against raw outputs for completeness | FAIL if important findings dropped |
 | 5 | VALIDATE_ROUTING | Confirm agent routes to collectorRequest (the default) | WARN if routing elsewhere without clear justification |
 | 6 | ASSESS_COLLECTOR_CONTEXT | Check that enough context is provided for collector's ADVANCE/ROUTE_BACK decision | FAIL if collector input lacks findings summary |
-| 7 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 7 | INJECT_RESEARCH | Share your independent research findings — corrections, additional context the agent missed | Share all findings. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

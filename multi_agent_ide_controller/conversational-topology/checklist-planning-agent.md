@@ -32,8 +32,9 @@ For every ACTION below, you MUST:
 | 7 | ASSESS_GRANULARITY | For each ticket, count the files it touches and check if they span subsystem boundaries | FAIL if a ticket touches > 5 files or spans multiple subsystems without justification |
 | 8 | VERIFY_SCOPE | All plan items must trace to the original goal — flag any "refactor" or "clean up" tasks | Share: "Ticket N says 'refactor X' — I don't see this in the goal. Is this necessary for the goal or is it scope creep?" | ESCALATE if plan includes work not in the goal |
 | 9 | CHECK_TEST_STRATEGY | Verify the plan includes verification steps for each ticket | WARN if no test strategy mentioned |
-| 10 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed — check each against the actual codebase | Share: "You assume [X about the codebase]. I checked and [confirmed/found otherwise]. Update your plan if needed." | Agent must confirm |
-| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response` | Agent may now return final result |
+| 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
+| 11 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed — check each against the actual codebase | Share: "You assume [X about the codebase]. I checked and [confirmed/found otherwise]. Update your plan if needed." | Agent must confirm |
+| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 
