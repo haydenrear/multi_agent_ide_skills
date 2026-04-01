@@ -415,35 +415,14 @@ Use this workflow when working with multiple independent feature branches or whe
 
 ### Setup: Create a feature branch
 
-Before starting work on a feature, create and push the branch from your source repo:
+Use `create-feature-branch.py` to create and push a feature branch across root and all submodules:
 
 ```bash
-# From your source checkout (e.g., ~/IdeaProjects/multi_agent_ide_parent)
-git switch main
-git pull origin main
-git switch -c feature/ticket-001
-git push origin feature/ticket-001
+cd <tmp-repo>
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/create-feature-branch.py --branch feature/ticket-001
 ```
 
-**For submodules:** The feature branch should exist in each submodule before pushing the root repo branch. Otherwise, `clone_or_pull.py` will fail when it tries to switch submodules to the feature branch:
-
-```bash
-# In each submodule, create and push the feature branch
-cd skills
-git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001
-cd ../multi_agent_ide_java_parent
-git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001
-cd ..
-
-# Back in root, push the feature branch with updated submodule pointers
-git push origin feature/ticket-001
-```
-
-**One-liner for all submodules** (run from root):
-```bash
-git submodule foreach --recursive 'git switch main && git pull origin main && git switch -c feature/ticket-001 && git push origin feature/ticket-001 || true'
-git push origin feature/ticket-001
-```
+This handles root + all 26 submodules in innermost-to-outermost order. Add `--dry-run` to preview without executing.
 
 ### Clone/sync to a feature branch
 
@@ -467,87 +446,51 @@ This performs the 3-phase deploy prep (clone/sync → verification gate → prov
 
 Once cloned/synced to a feature branch, follow the standard workflow (Steps 2–11) **without modification**. The tmp repo is on the feature branch, so all operations (deploy, agent runs, etc.) work on that branch. There is no special handling needed.
 
-### Push changes from feature branch to tmp repo
+### Sync feature branch changes
 
-Before deploying agents, push your changes from the source repo's feature branch to the remote:
-
-```bash
-# From source repo (e.g., ~/IdeaProjects/multi_agent_ide_parent)
-git switch feature/ticket-001
-
-# Push innermost submodule first, then work outward (same pattern as Step 1a)
-cd skills/multi_agent_ide_skills
-git add . && git commit -m "preparing" && git push origin feature/ticket-001
-cd ../..
-
-cd skills
-git add multi_agent_ide_skills && git add . && git commit -m "preparing" && git push origin feature/ticket-001
-cd ..
-
-cd multi_agent_ide_java_parent
-git add . && git commit -m "preparing" && git push origin feature/ticket-001
-cd ..
-
-git add skills multi_agent_ide_java_parent && git commit -m "preparing" && git push origin feature/ticket-001
-```
-
-Then sync the tmp repo to pull those changes:
+To pull the latest changes on a feature branch across root and all submodules:
 
 ```bash
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+cd <tmp-repo>
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/sync-feature-branch.py --branch feature/ticket-001
 ```
+
+This switches each repo to the branch and pulls. Handles edge cases where the branch doesn't exist locally yet (creates tracking branch from remote).
 
 ### Merge feature branch back to main
 
-After all work on the feature branch is complete and tested, merge it back to main:
-
 ```bash
-# From source repo
-git switch feature/ticket-001
-git pull origin feature/ticket-001  # Ensure local is up to date with remote
-
-# Merge to main
-git switch main
-git pull origin main
-git merge feature/ticket-001  # Or use --ff-only if you want fast-forward only
-git push origin main
-
-# Also merge submodules
-cd skills
-git switch main && git pull origin main
-git merge feature/ticket-001
-git push origin main
-cd ../multi_agent_ide_java_parent
-git switch main && git pull origin main
-git merge feature/ticket-001
-git push origin main
-cd ..
+cd <tmp-repo>
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/merge-feature-to-main.py --branch feature/ticket-001
 ```
 
-**One-liner for all submodules and root:**
-```bash
-git submodule foreach --recursive 'git switch main && git pull origin main && git merge feature/ticket-001 && git push origin main || true'
-git switch main && git pull origin main && git merge feature/ticket-001 && git push origin main
-```
+This switches each repo to main, pulls, merges the feature branch, and pushes — in innermost-to-outermost order. Reports conflicts per-submodule. Add `--dry-run` to preview.
 
-If merge conflicts occur, resolve them in the source repo, commit, and push before proceeding.
+### Pull merged changes into the tmp repo
 
-### Pull merged changes into the tmp repo (optional)
-
-If you deployed agents on a feature branch and want to apply the merged result to the tmp repo on main, pull the updated main:
+After merging a feature branch to main, pull the updated main across all repos:
 
 ```bash
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch main
+cd <tmp-repo>
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/pull-merged-code.py
 ```
 
-This switches the tmp repo back to main and pulls all merged changes (including the feature branch work now integrated into main). You can then redeploy and continue work on main if needed.
+This switches all repos to main and pulls latest. Reports partial failures if any submodule pull fails.
 
-Alternatively, if you are done with the tmp repo on the feature branch, you can delete it:
+### Merge worktree changes after goal completion
+
+When a goal completes, `poll.py` displays the `GoalCompletedEvent.worktreePath` and a suggested merge command. The worktree contains the agent's work on a derived branch — there is **no automatic merge back to the tmp repo**.
+
+To merge worktree changes into the tmp repo:
 
 ```bash
-rm /private/tmp/multi_agent_ide_parent/tmp_repo.txt
-# The tmp repo directory will be cleaned up on the next clone_or_pull.py run
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/merge-from-worktree.py \
+  --worktree-path /Users/hayde/.multi-agent-ide/worktrees/<uuid>
 ```
+
+This fetches from the worktree, merges into the tmp repo's current branch for each submodule and root, then pushes innermost-first. Conflicts are detected per-submodule — conflicting merges are aborted cleanly while non-conflicting ones proceed. The JSON output includes `merged`, `conflicts`, and `errors` arrays for full visibility.
+
+Add `--dry-run` to preview the merge sequence without executing.
 
 ### Multi-branch coordination
 

@@ -299,20 +299,17 @@ def main():
         }
         return success(data)
 
-    # Fail if there are any errors, regardless of conflicts
+    # If there are errors, return failure but include all results (merged, errors, conflicts)
     if has_errors:
-        data = {
+        return failure({
             "worktree_path": str(worktree_path),
             "tmp_repo_path": str(tmp_repo),
-            "errors": merge_results["errors"],
-            "conflicts": merge_results["conflicts"],
-        }
-        return failure(data)
+            "merge": merge_results,
+        })
 
-    # Push results
+    # Push successfully-merged submodules (conflicting ones were aborted, so won't push stale state)
     push_results = push_innermost_first(tmp_repo, args.dry_run)
 
-    # Prepare final result
     data = {
         "worktree_path": str(worktree_path),
         "tmp_repo_path": str(tmp_repo),
@@ -320,10 +317,12 @@ def main():
         "push": push_results,
     }
 
-    # Return success even if there are conflicts — they were reported
     if has_conflicts:
-        data["conflicts_reported"] = True
         data["status"] = "merged_with_conflicts"
+
+    # Fail if push had errors, otherwise success (even with merge conflicts — they were reported and aborted)
+    if push_results["errors"]:
+        return failure(data)
 
     return success(data)
 

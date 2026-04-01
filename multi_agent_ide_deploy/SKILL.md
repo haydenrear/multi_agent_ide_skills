@@ -169,6 +169,7 @@ If the application fails to clone/worktree-branch after deploy, re-run the pre-d
 | `scripts/sync-feature-branch.py` | Sync (pull) a feature branch across root + all submodules |
 | `scripts/merge-feature-to-main.py` | Merge a feature branch into main across root + all submodules |
 | `scripts/pull-merged-code.py` | Pull latest main after merge, across root + all submodules |
+| `scripts/merge-from-worktree.py` | Merge a worktree's branch into the tmp repo (used after GoalCompletedEvent) |
 
 ### Workflow
 1. **Before automating any deploy step** (cloning, syncing, health checking), check if a script already handles it.
@@ -204,5 +205,17 @@ python scripts/merge-feature-to-main.py --branch feature/ticket-001
 python scripts/pull-merged-code.py
 # Switches all repos to main and pulls latest (after merge-feature-to-main.py)
 ```
+
+### Worktree merge-back script
+
+After a goal completes, `poll.py` displays the `GoalCompletedEvent.worktreePath`. Use `merge-from-worktree.py` to merge the worktree's branch into the tmp repo:
+
+```bash
+python scripts/merge-from-worktree.py --worktree-path /path/to/worktree
+# Fetches from worktree, merges into tmp repo current branch, pushes innermost-first
+# Reports conflicts per-submodule but continues merging non-conflicting ones
+```
+
+Add `--dry-run` to preview the merge sequence without executing git commands.
 
 See `standard_workflow.md` in `multi_agent_ide_controller` for full parallel execution workflow documentation including branch creation, multi-branch coordination, and troubleshooting.
