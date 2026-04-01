@@ -33,7 +33,8 @@ For every ACTION below, you MUST:
 | 9 | VERIFY_WORKTREE_ASSIGNMENT | If parallel execution, each ticket agent should have worktree context | WARN if worktree assignments are missing for parallel tickets |
 | 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
 | 11 | CHALLENGE_ASSUMPTIONS | Review assumptions about ticket independence and execution order | Share: "You assume tickets [A] and [B] can run in parallel — I checked the files they touch and [they overlap/they're independent]. Confirm?" | Agent must confirm |
-| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 12 | USER_CONFIRMATION | **Summarize for the user**: the orchestrator's ticket agent requests — how many, execution order, scope of each, any parallel vs sequential decisions. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 13 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

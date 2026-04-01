@@ -35,7 +35,8 @@ For every ACTION below, you MUST:
 | 10 | CHECK_ROUTE_BACK_PROTOCOL | If ROUTE_BACK, verify agent raised interrupt first | FAIL if ROUTE_BACK without prior interrupt/review |
 | 11 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
 | 12 | CHALLENGE_ASSUMPTIONS | Review assumptions about ticket completeness and dependency ordering | Share: "You assume the tickets cover all requirements — I mapped them and [found gap/confirmed coverage]. Update if needed." | Agent must confirm |
-| 13 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 13 | USER_CONFIRMATION | **Summarize for the user**: the collector's decision (ADVANCE_PHASE or ROUTE_BACK), finalized ticket list, dependency ordering, any gaps or concerns about ticket completeness. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 14 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

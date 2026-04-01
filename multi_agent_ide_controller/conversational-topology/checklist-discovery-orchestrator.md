@@ -32,7 +32,8 @@ For every ACTION below, you MUST:
 | 8 | VERIFY_GOAL_FIDELITY | Compare discovery request goals with the original goal word-for-word | Share any drift: "The original goal says X but your agent request says Y — is this intentional?" | FAIL if discovery requests address a different problem |
 | 9 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
 | 10 | CHALLENGE_ASSUMPTIONS | Review assumptions about codebase structure and independence of tracks | Share: "You assumed X and Y are independent — I checked and [they share/don't share] dependencies" | Agent must confirm |
-| 11 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 11 | USER_CONFIRMATION | **Summarize for the user**: how the orchestrator partitioned discovery work, agent scopes, any overlaps or gaps you found. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 12 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

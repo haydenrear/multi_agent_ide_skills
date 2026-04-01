@@ -31,7 +31,7 @@ from pathlib import Path
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-DEFAULT_REPO_URL = "https://github.com/haydenrear/multi_agent_ide_parent.git"
+DEFAULT_REPO_URL = "git@github.com:haydenrear/multi_agent_ide_parent.git"
 TMP_BASE = Path("/private/tmp/multi_agent_ide_parent")
 TMP_REPO_FILE = TMP_BASE / "tmp_repo.txt"
 

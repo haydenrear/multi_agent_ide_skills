@@ -549,6 +549,75 @@ rm /private/tmp/multi_agent_ide_parent/tmp_repo.txt
 # The tmp repo directory will be cleaned up on the next clone_or_pull.py run
 ```
 
+### Merge worktree changes after goal completion
+
+When a goal completes, `poll.py` displays the `GoalCompletedEvent.worktreePath`. The worktree contains the agent's work on a derived branch (e.g. `main-<uuid>`) — there is **no automatic merge back to the source repo or tmp repo**.
+
+The controller should manually merge worktree changes back into the project repo. Process each submodule that has changes, **innermost first** (`skills/multi_agent_ide_skills` → `skills` → root):
+
+#### 1. Check for dangling commits
+
+The worktree system sometimes creates temp branches (e.g. `main-212e9b45-...`) and switches away without merging, orphaning commits. Before merging, check for this:
+
+```bash
+cd <worktree-path>/<submodule>
+git reflog --oneline -20
+```
+
+Look for entries like `checkout: moving from main-<uuid> to main` — this means the agent's branch was abandoned. If you find orphaned commits, cherry-pick them onto the current branch:
+
+```bash
+git cherry-pick <orphaned-commit-sha>
+```
+
+#### 2. Check remote URLs
+
+Worktree repos may have origin pointing to the tmp repo's `.git` dir instead of GitHub. Verify and fix if needed:
+
+```bash
+git -C <worktree-submodule> remote -v
+# If it points to a local .git path instead of github:
+git -C <worktree-submodule> remote set-url origin git@github.com:haydenrear/<repo>.git
+```
+
+#### 3. Push the agent's branch to origin
+
+```bash
+git -C <worktree-submodule> push origin <branch-name>
+```
+
+#### 4. Merge into the project repo
+
+In the project repo's corresponding submodule, fetch and merge the agent's branch:
+
+```bash
+cd ~/IdeaProjects/multi_agent_ide_parent/<submodule>
+git fetch origin <branch-name>
+git merge origin/<branch-name>
+```
+
+#### 5. Push and walk up the submodule chain
+
+After merging and pushing the innermost submodule, commit the updated submodule pointer in the parent, push, and repeat until root is done:
+
+```bash
+# After pushing skills/multi_agent_ide_skills:
+cd skills
+git add multi_agent_ide_skills
+git commit -m "Update multi_agent_ide_skills submodule pointer"
+git push origin main
+
+# After pushing skills:
+cd ..
+git add skills
+git commit -m "Update skills submodule pointer"
+git push origin main
+```
+
+**Order:** `skills/multi_agent_ide_skills` → `skills` → root (innermost → outermost).
+
+**Tip:** If main hasn't diverged, the merge will be a fast-forward — `git pull origin <branch>` and `git push origin main` is sufficient.
+
 ### Multi-branch coordination
 
 **For concurrent execution on different branches:**

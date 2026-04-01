@@ -28,7 +28,8 @@ For every ACTION below, you MUST:
 | 5 | VALIDATE_ROUTING | Confirm agent routes to collectorRequest (the default) | WARN if routing elsewhere without clear justification |
 | 6 | ASSESS_COLLECTOR_CONTEXT | Check that enough context is provided for collector's ADVANCE/ROUTE_BACK decision | FAIL if collector input lacks findings summary |
 | 7 | INJECT_RESEARCH | Share your independent research findings — corrections, additional context the agent missed | Share all findings. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
-| 8 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 8 | USER_CONFIRMATION | **Summarize for the user**: the dispatch synthesis — what was collected from discovery agents, how it was consolidated, routing decision. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 9 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

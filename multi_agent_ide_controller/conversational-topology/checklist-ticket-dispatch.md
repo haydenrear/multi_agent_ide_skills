@@ -29,7 +29,8 @@ For every ACTION below, you MUST:
 | 6 | VALIDATE_ROUTING | Confirm agent routes to ticketCollectorRequest (the default) | WARN if routing elsewhere without justification |
 | 7 | ASSESS_COLLECTOR_CONTEXT | Verify synthesis includes enough detail for collector to assess what was actually implemented | FAIL if collector can't determine what was actually implemented |
 | 8 | INJECT_RESEARCH | Share your independent research findings — corrections, additional context the agent missed | Share all findings. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
-| 9 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 9 | USER_CONFIRMATION | **Summarize for the user**: the dispatch synthesis — ticket results collected, success/failure counts, routing decision, any concerns about missing or partial results. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 10 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 

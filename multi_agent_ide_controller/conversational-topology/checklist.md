@@ -108,13 +108,20 @@ The controller drives the review conversation by stepping through ACTION rows on
 - You may use multiple rounds of INJECT_RESEARCH if the agent's integration is incomplete
 - **Any action that provides new information the agent needs to integrate MUST NOT be JUSTIFICATION_PASSED** — use INJECT_RESEARCH, CHALLENGE_ASSUMPTIONS, or any other checklist action instead
 
+**USER_CONFIRMATION — mandatory user gate before terminal approval:**
+- **CRITICAL: Before sending JUSTIFICATION_PASSED for ANY agent, the controller MUST present its findings to the user and get explicit confirmation to proceed.**
+- Summarize for the user: what the agent produced, what you verified, any concerns or gaps
+- Wait for the user to confirm before sending JUSTIFICATION_PASSED
+- If the user rejects or requests changes, go back to INJECT_RESEARCH with the user's feedback
+- This applies to ALL agent types — discovery, planning, ticket, orchestrator, dispatch, collector
+
 **JUSTIFICATION_PASSED — terminal approval, no new information:**
 - **CRITICAL: The `controller_response.jinja` template matches on JUSTIFICATION_PASSED and instructs the agent to immediately return its structured JSON result without calling `call_controller` again.** This is a hard match in the template — the agent is told "Do NOT call call_controller again. Return your final structured JSON result now."
 - Because of this template behavior, **you MUST NOT include any new information in the JUSTIFICATION_PASSED message**. If you include new findings, the agent receives two conflicting signals: "integrate this" and "return immediately without calling back." This causes the agent to either loop (calling `call_controller` to confirm) or silently drop the new information.
 - JUSTIFICATION_PASSED should only confirm the already-integrated and refined result. It may include a reminder about JSON output format but nothing the agent needs to act on.
-- The correct flow is: share all research via INJECT_RESEARCH → agent confirms integration → verify the refined result → only then send JUSTIFICATION_PASSED with `--no-expect-response`
+- The correct flow is: share all research via INJECT_RESEARCH → agent confirms integration → verify the refined result → **get user confirmation** → only then send JUSTIFICATION_PASSED with `--no-expect-response`
 - Respond with `--action-name JUSTIFICATION_PASSED` and `--no-expect-response`
-- This is the terminal signal — do not send it until you are satisfied that all information has been integrated and the agent's proposed result is correct
+- This is the terminal signal — do not send it until you are satisfied that all information has been integrated, the agent's proposed result is correct, **and the user has confirmed**
 
 **If you need to escalate to the user:**
 - Do NOT respond to the agent — escalate to the user first

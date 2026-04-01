@@ -34,7 +34,8 @@ For every ACTION below, you MUST:
 | 9 | CHECK_TEST_STRATEGY | Verify the plan includes verification steps for each ticket | WARN if no test strategy mentioned |
 | 10 | INJECT_RESEARCH | Share your independent codebase research findings — file locations, code details, corrections to the agent's assumptions | Share all findings and corrections. Ask: "Confirm you've received these findings and update your proposed result if needed." | Agent must confirm receipt and integrate |
 | 11 | CHALLENGE_ASSUMPTIONS | Review the assumptions the agent listed — check each against the actual codebase | Share: "You assume [X about the codebase]. I checked and [confirmed/found otherwise]. Update your plan if needed." | Agent must confirm |
-| 12 | JUSTIFICATION_PASSED | All checks pass — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
+| 12 | USER_CONFIRMATION | **Summarize for the user**: the proposed tickets — count, scope of each, dependency order, test strategy, any concerns about granularity or missing coverage. Present this as a concise summary and wait for the user to explicitly confirm before proceeding. Do NOT send to agent — this is a controller↔user gate. If user rejects, go back to INJECT_RESEARCH with user's feedback. | **HARD GATE — must have user approval** |
+| 13 | JUSTIFICATION_PASSED | All checks pass, user approved — send JUSTIFICATION_PASSED with `--no-expect-response`. Do NOT include new information — only approval. | Agent returns final structured result |
 
 ## Red Flags
 
