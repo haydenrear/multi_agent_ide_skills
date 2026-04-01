@@ -79,12 +79,16 @@ def order_submodules_innermost_first(submodules: list[str]) -> list[str]:
 def sync_branch_in_repo(cwd: str, branch: str) -> tuple[bool, str | None]:
     """
     Sync/pull a branch in a single repo.
+    Handles case where branch may not exist locally yet (creates tracking from remote if needed).
     Returns (success: bool, error_msg: str | None)
     """
-    # Ensure we're on the correct branch
+    # Try to switch to the branch (if it exists locally)
     r = git(["switch", branch], cwd=cwd, check=False)
     if r.returncode != 0:
-        return False, f"Failed to switch to branch {branch}: {r.stderr.strip()}"
+        # Branch doesn't exist locally, try to create it tracking from remote
+        r = git(["switch", "-c", branch, f"--track=origin/{branch}"], cwd=cwd, check=False)
+        if r.returncode != 0:
+            return False, f"Failed to switch to or create tracking branch {branch}: {r.stderr.strip()}"
 
     # Pull the branch
     r = git(["pull", "origin", branch], cwd=cwd, check=False)
