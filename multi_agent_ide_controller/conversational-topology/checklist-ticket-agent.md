@@ -23,7 +23,7 @@ For every ACTION below, you MUST:
 | Step | ACTION | What YOU (controller) Research | What to Tell the Agent | Gate |
 |------|--------|-------------------------------|----------------------|------|
 | 1 | VERIFY_RESULT_PREVIEW | Check that the justification previews the specific changes made — files modified, what was added/changed, test results | If missing: "I need to see which files you changed, what you added/modified in each, and whether tests pass before I can evaluate" | FAIL if no result preview |
-| 2 | RESEARCH_DIFF | Read the actual diff yourself — every changed file, every hunk | Share: "I read the diff. In [file], you changed [X] but I notice [Y concern]. Also, [file B] wasn't changed but seems to need updating based on your changes to [file A]." | Conversation starter — agent must respond |
+| 2 | RESEARCH_DIFF | **HARD GATE — you MUST `git diff` every commit the agent made and read every hunk before proceeding.** A `--stat` line count is NOT sufficient. Read the actual code changes: new functions, modified signatures, updated call sites, added parameters. Verify the diff matches the agent's claims. If the agent says it added helper functions, confirm they exist and are correct. If the agent says it updated all call sites, confirm each one. Do NOT approve based on the justification text alone — the diff is the source of truth. | Share: "I read the diff. In [file], you changed [X] but I notice [Y concern]. Also, [file B] wasn't changed but seems to need updating based on your changes to [file A]." | **FAIL if controller did not read full diff** — do not proceed to later steps |
 | 3 | CHECK_COMPLETENESS | After hearing the agent's response, verify the diff addresses the ticket's full goal | FAIL if ticket goal not fully addressed |
 | 4 | RESEARCH_CORRECTNESS | Trace the logic of each change — follow call chains, check types, verify semantics | Share: "In [method], you pass [X] but the callee expects [Y]. Also, [edge case Z] doesn't seem handled." | Conversation starter — agent must respond |
 | 5 | VERIFY_CORRECTNESS | After the agent responds, confirm logic errors are resolved | FAIL if logic errors remain |
@@ -47,3 +47,4 @@ For every ACTION below, you MUST:
 - Agent summary describes more changes than the diff contains
 - `@SuppressWarnings` or `// TODO` added without explanation
 - Agent's justification has no result preview — only reasoning
+- **Controller approved without reading the full diff** — only checked `--stat` line counts or trusted the agent's justification text. This is the most dangerous failure mode: the agent may claim changes were made that don't exist in the diff, or the implementation may be subtly wrong in ways only visible by reading the actual code hunks
