@@ -94,6 +94,17 @@ See `multi_agent_ide_deploy` skill for full deploy options and profiles. Default
 
 Review active filter policies at startup — they appear in the deploy response under `activeFilterPolicies`.
 
+**If deploy fails** (health check timeout, `"ok": false`), check the build log first:
+```bash
+tail -100 /private/tmp/multi_agent_ide_parent/multi_agent_ide_parent/build-log.log
+```
+Common causes:
+- **Build failure**: compilation error in pulled code — fix the code, re-push, re-pull, redeploy.
+- **Stale goal in DB**: a previous goal's retry loop crashes the app at startup — reset the DB schema (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;` in the postgres container) then redeploy.
+- **Port conflict**: another process on 8080 — check `lsof -i :8080`.
+
+Do NOT skip checking `build-log.log` — the deploy script's `"message": "Application failed health check"` does not distinguish between a build failure and a runtime failure.
+
 ### Step 3 — Start goal
 ```bash
 curl -X POST http://localhost:8080/api/ui/goals/start \
