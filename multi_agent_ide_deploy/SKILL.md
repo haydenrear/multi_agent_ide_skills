@@ -206,3 +206,337 @@ python scripts/pull-merged-code.py
 ```
 
 See `standard_workflow.md` in `multi_agent_ide_controller` for full parallel execution workflow documentation including branch creation, multi-branch coordination, and troubleshooting.
+
+---
+
+## Merge-back workflow orchestration
+
+The merge-back workflow enables end-of-ticket merge-back operations for parallel execution. When a goal (ticket) is complete, the feature branch is merged back into main, and all changes are propagated through submodule pointers.
+
+### Complete merge-back workflow
+
+**Step 1: Verify feature branch state**
+```bash
+# Ensure all changes are committed and pushed on the feature branch
+python scripts/sync-feature-branch.py --branch feature/ticket-001
+# Verifies all repos are clean and up-to-date on the feature branch
+```
+
+**Step 2: Merge feature branch into main**
+```bash
+# Merge across root + all 19 submodules, auto-update submodule pointers
+python scripts/merge-feature-to-main.py --branch feature/ticket-001
+# Exit code: 0 = success, 1 = merge errors, 2 = merge conflicts
+```
+
+If merge returns exit code 2 (conflicts), see "Handling merge conflicts" below.
+
+**Step 3: Pull merged code into tmp repo**
+```bash
+# Switch to main and pull latest in root + all submodules
+python scripts/pull-merged-code.py
+# Prepares tmp_repo for next goal or deployment
+```
+
+**Step 4: Optionally delete feature branch**
+```bash
+# Clean up feature branch across root + submodules
+git submodule foreach --recursive 'git branch -d feature/ticket-001 || true'
+git branch -d feature/ticket-001
+git submodule foreach --recursive 'git push origin --delete feature/ticket-001 || true'
+git push origin --delete feature/ticket-001
+```
+
+### Return value format
+
+All merge-back scripts return structured JSON:
+
+**merge-feature-to-main.py return:**
+```json
+{
+  "ok": true,
+  "branch": "feature/ticket-001",
+  "merged": ["root", "buildSrc", "persistence", ...],
+  "merge_conflicts": [],
+  "already_on_main": [],
+  "errors": null,
+  "merge_commits": {
+    "root": "abc123def456",
+    "buildSrc": "def456ghi789",
+    ...
+  }
+}
+```
+
+**pull-merged-code.py return:**
+```json
+{
+  "ok": true,
+  "pulled": ["root", "buildSrc", ...],
+  "pull_errors": null,
+  "branch_checkout_errors": null,
+  "clean_state": true
+}
+```
+
+---
+
+## Integration guide: Controller merge-back orchestration
+
+Controllers and orchestrators use the merge-back scripts to automate end-of-ticket operations. Integration flow:
+
+### 1. After ticket agent completes goal
+When a ticket goal finishes (all agents done, changes committed to feature branch), invoke merge-back:
+
+```bash
+# From orchestrator or controller script
+BRANCH="feature/ticket-001"
+INSTANCE_ID="goal-1"
+
+# Merge to main
+python scripts/merge-feature-to-main.py --branch $BRANCH
+if [ $? -ne 0 ]; then
+  echo "Merge failed or conflicts detected"
+  # See "Handling merge conflicts" section below
+  exit 1
+fi
+
+# Pull merged code into instance tmp repo
+python scripts/pull-merged-code.py --instance-id $INSTANCE_ID
+if [ $? -ne 0 ]; then
+  echo "Pull failed"
+  # See "Recovery procedures" section below
+  exit 1
+fi
+```
+
+### 2. Validate merge success
+Check return JSON for:
+- `"ok": true` — merge and pull both succeeded
+- `"merged"` list matches expected repos
+- `"merge_conflicts": null` — no conflicts
+- `"clean_state": true` — all repos clean after pull
+
+### 3. Next steps
+After successful merge-back:
+- Delete feature branch (optional cleanup)
+- Update goal status to MERGED
+- Proceed to next goal or complete workflow
+
+### 4. Multi-goal coordination
+When multiple goals are merging concurrently:
+- Each goal operates on its own instance-id (separate tmp repos)
+- Merge-back operations serialize through main branch (git naturally serializes pushes)
+- If push conflict occurs (concurrent pushes), script fails with clear error
+- See "Handling push conflicts" below for recovery
+
+---
+
+## Error handling and recovery procedures
+
+### Merge conflicts during merge-feature-to-main.py
+
+**Symptom:** Script returns exit code 2 with merge_conflicts list:
+```json
+{
+  "ok": false,
+  "merge_conflicts": ["root", "buildSrc"],
+  ...
+}
+```
+
+**Recovery:**
+
+1. **Inspect conflicts:**
+```bash
+# Find conflicted files
+cd /path/to/repo/root
+git status
+# Or in affected submodule
+cd /path/to/repo/buildSrc
+git status
+```
+
+2. **Resolve conflicts:**
+```bash
+# Edit conflicted files to resolve
+# (git shows conflict markers like <<<<<<<, =======, >>>>>>>)
+nano src/main/java/ConflictedFile.java
+
+# Stage resolved files
+git add src/main/java/ConflictedFile.java
+
+# Complete merge
+git commit -m "Resolve merge conflicts"
+
+# Push to main
+git push origin main
+```
+
+3. **Retry merge:**
+```bash
+# Re-run merge script (it will skip already-merged repos)
+python scripts/merge-feature-to-main.py --branch feature/ticket-001
+```
+
+### Push conflicts (concurrent merges)
+
+**Symptom:** Script returns exit code 1 with push_error:
+```json
+{
+  "ok": false,
+  "errors": [
+    {"repo": "root", "push_error": "rejected ... (non-fast-forward)"}
+  ]
+}
+```
+
+**Cause:** Another goal merged and pushed to main while this goal was merging.
+
+**Recovery:**
+
+1. **Pull latest main:**
+```bash
+cd /path/to/repo/root
+git fetch origin
+git rebase origin/main
+# Or git merge origin/main
+```
+
+2. **Resolve any new conflicts (if rebase conflicts occur):**
+```bash
+# Repeat conflict resolution for rebased commits
+git add <files>
+git rebase --continue
+```
+
+3. **Push resolved changes:**
+```bash
+git push origin main
+```
+
+4. **Propagate to submodules:**
+```bash
+# Update submodule pointers in parent
+git add .
+git commit -m "Update submodule pointers after rebase"
+git push origin main
+```
+
+5. **Retry:**
+```bash
+python scripts/merge-feature-to-main.py --branch feature/ticket-001
+```
+
+### Pull failures after merge
+
+**Symptom:** pull-merged-code.py returns exit code 1 with pull_errors:
+```json
+{
+  "ok": false,
+  "pull_errors": [{"repo": "root", "error": "..."}],
+  ...
+}
+```
+
+**Common causes:**
+- Remote main branch is ahead of local (another goal just merged)
+- Merge conflicts in pull (rare, indicates merge-to-main incompleteness)
+- Network error
+
+**Recovery:**
+
+1. **Check current branch state:**
+```bash
+git status
+git log --oneline -5
+```
+
+2. **If branch not on main, switch:**
+```bash
+git checkout main
+```
+
+3. **Fetch and rebase/merge:**
+```bash
+git fetch origin
+git merge origin/main
+```
+
+4. **Retry pull script:**
+```bash
+python scripts/pull-merged-code.py --instance-id goal-1
+```
+
+### Submodule pointer corruption
+
+**Symptom:** After merge-back, submodule pointers in parent don't match actual submodule commits.
+Detection: `git status` shows submodule as "modified content" but nothing changed locally.
+
+**Recovery:**
+
+1. **Verify state in submodule:**
+```bash
+cd buildSrc
+git log --oneline -1  # Check current commit
+git branch -v  # Verify on correct branch
+```
+
+2. **Update pointer in parent:**
+```bash
+cd ..  # Back to root
+git add buildSrc
+git commit -m "Fix submodule pointer"
+git push origin main
+```
+
+3. **Re-verify:**
+```bash
+git status  # Should show clean
+```
+
+4. **Propagate to tmp repos:**
+```bash
+python scripts/pull-merged-code.py --instance-id goal-1
+```
+
+### Rollback (undo merge-back)
+
+If merge-back needs to be completely undone (rare):
+
+1. **Reset root to pre-merge commit:**
+```bash
+# Find pre-merge commit
+git log --oneline | grep "Merge"
+git reset --hard <commit-before-merge>
+git push origin main --force-with-lease
+```
+
+2. **Reset all submodules:**
+```bash
+git submodule foreach 'git reset --hard <commit-before-merge> && git push origin main --force-with-lease || true'
+```
+
+3. **Re-create feature branch from main:**
+```bash
+git checkout -b feature/ticket-001
+```
+
+**CAUTION: Force push is destructive. Use only if absolutely necessary and coordinate with other agents/goals.**
+
+### Diagnostic commands
+
+Verify merge-back state:
+```bash
+# Check all repos on main
+git branch && git submodule foreach --recursive git branch
+
+# Verify clean state
+git status && git submodule foreach --recursive git status
+
+# View recent merges
+git log --oneline --merges -10
+
+# Compare submodule pointers with actual commits
+git submodule foreach 'echo "=== $name ===" && git log --oneline -1'
+```
