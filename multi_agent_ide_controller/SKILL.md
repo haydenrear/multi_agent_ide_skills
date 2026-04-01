@@ -16,6 +16,8 @@ description: Executable workflow skill for the full multi_agent_ide controller l
 
 Before constructing **any** API call, run `api_schema.py` from the `multi_agent_ide_api` skill to get the live request/response shape. Never guess field names.
 
+**Levels:** 1 = groups, 2 = endpoints, 3 = top-level shapes, **4 = full nested schemas** (use this when constructing request bodies).
+
 ```bash
 # Discover all API groups
 python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py
@@ -25,6 +27,9 @@ python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py -
 
 # Get full request/response shapes for a group
 python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py --level 3 --tag "Propagators"
+
+# Get full nested schemas for constructing API calls (e.g., goal submission)
+python skills/multi_agent_ide_skills/multi_agent_ide_api/scripts/api_schema.py --level 4 --path "/api/ui/goals/start"
 ```
 
 ### Common controller operations and their endpoints

@@ -19,7 +19,7 @@ This is the canonical ownership table. When in doubt about which skill to consul
 
 | Task | Skill to use |
 |------|-------------|
-| Submit a goal (`/api/ui/goals/start`) | `multi_agent_ide_controller` (references `multi_agent_ide_api` for schema) |
+| Submit a goal (`/api/ui/goals/start`) | `multi_agent_ide_controller` (use `multi_agent_ide_api` → `api_schema.py --level 4` for full request schema) |
 | Poll workflow graph | `multi_agent_ide_controller` → `executables/poll.py` |
 | Discover endpoint URL or request shape | `multi_agent_ide_api` → `scripts/api_schema.py` |
 | List or register propagators/filters/transformers | `multi_agent_ide_api` (schema discovery) + `multi_agent_ide_controller` (session scripting) |
