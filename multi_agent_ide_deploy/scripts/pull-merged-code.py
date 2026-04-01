@@ -25,11 +25,6 @@ if __package__ is None or __package__ == "":
 from _result import failure, success
 
 
-# ── constants ─────────────────────────────────────────────────────────────────
-
-SCRIPTS_DIR = Path(__file__).resolve().parent
-
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def run(cmd: list[str], cwd: str | None = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -126,9 +121,7 @@ def main() -> int:
         return failure("Current directory is not a git repository")
 
     # Pull main in root repository
-    success_flag, error = pull_main_in_repo(repo_path)
-    if not success_flag:
-        return failure(error)
+    root_success, root_error = pull_main_in_repo(repo_path)
 
     # Pull main in all submodules (innermost-to-outermost order)
     submodule_results = pull_main_in_submodules(repo_path)
@@ -136,13 +129,20 @@ def main() -> int:
     # Build output
     output = {
         "branch": "main",
-        "root_pulled": True,
+        "root_pulled": root_success,
         "submodules_pulled": submodule_results["pulled"],
     }
 
+    # Collect all errors (root + submodules)
+    errors = []
+    if not root_success:
+        errors.append({"path": "root", "error": root_error})
     if submodule_results["failed"]:
-        output["submodule_errors"] = submodule_results["failed"]
-        # If any submodules failed, report overall failure but include partial results
+        errors.extend(submodule_results["failed"])
+
+    if errors:
+        output["errors"] = errors
+        # If any pulls failed, report overall failure but include partial results
         return failure(output)
 
     return success(output)
