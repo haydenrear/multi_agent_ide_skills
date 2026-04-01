@@ -3,8 +3,10 @@
 clone_or_pull.py — Three-phase deploy preparation for multi_agent_ide.
 
 Phase 1 — Clone/Sync:
-  If /private/tmp/multi_agent_ide_parent/tmp_repo.txt exists and the directory is valid,
-  pull all repos to main. Otherwise clone fresh.
+  If <tmp_base>/tmp_repo.txt exists and the directory is valid,
+  pull all repos to branch. Otherwise clone fresh.
+  <tmp_base> is /private/tmp/multi_agent_ide_parent (default) or
+  /private/tmp/multi_agent_ide_parent/<instance-id> (if --instance-id provided).
 
 Phase 2 — Verification Gate:
   Check dirty files, detached HEADs, and SHA alignment.
@@ -13,9 +15,15 @@ Phase 2 — Verification Gate:
 Phase 3 — Deploy:
   Provisions required directories and optionally invokes deploy_restart.py.
 
+Instance-ID Support:
+  The --instance-id flag enables parallel goal isolation by routing each goal
+  to its own tmp repo directory. When omitted, script uses default single-instance mode.
+
 Usage:
-  python clone_or_pull.py [--repo-url URL] [--branch BRANCH] [--dry-run] [--skip-deploy]
-  python clone_or_pull.py --status   # check current tmp repo state only
+  python clone_or_pull.py [--repo-url URL] [--branch BRANCH] [--instance-id ID] [--dry-run] [--skip-deploy]
+  python clone_or_pull.py --status [--instance-id ID]  # check tmp repo state for instance
+  python clone_or_pull.py --instance-id goal-1 --branch feature-x  # clone feature-x to goal-1 instance
+  python clone_or_pull.py  # clone main to default single-instance mode (backward compatible)
 
 Environment:
   MULTI_AGENT_IDE_REPO_URL — default repo URL if --repo-url not provided
@@ -32,11 +40,29 @@ from pathlib import Path
 # ── constants ─────────────────────────────────────────────────────────────────
 
 DEFAULT_REPO_URL = "https://github.com/haydenrear/multi_agent_ide_parent.git"
-TMP_BASE = Path("/private/tmp/multi_agent_ide_parent")
-TMP_REPO_FILE = TMP_BASE / "tmp_repo.txt"
+TMP_BASE_DEFAULT = Path("/private/tmp/multi_agent_ide_parent")
 
 # Script lives at <source_root>/skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/
 SOURCE_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+
+
+# ── instance-id support ───────────────────────────────────────────────────────
+
+def get_tmp_base(instance_id: str | None) -> Path:
+    """Derive TMP_BASE based on instance_id.
+
+    When instance_id is None, uses default single-instance path.
+    When instance_id is provided, uses instance-specific path.
+    """
+    if instance_id is None:
+        return TMP_BASE_DEFAULT
+    return TMP_BASE_DEFAULT / instance_id
+
+
+def get_tmp_repo_file(instance_id: str | None) -> Path:
+    """Derive TMP_REPO_FILE based on instance_id."""
+    tmp_base = get_tmp_base(instance_id)
+    return tmp_base / "tmp_repo.txt"
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -49,33 +75,39 @@ def git(args: list[str], cwd: str | None = None, check: bool = True) -> subproce
     return run(["git"] + args, cwd=cwd, check=check)
 
 
-def read_tmp_repo() -> Path | None:
-    if not TMP_REPO_FILE.exists():
+def read_tmp_repo(instance_id: str | None = None) -> Path | None:
+    """Read tmp repo path from instance-specific tracking file."""
+    tmp_repo_file = get_tmp_repo_file(instance_id)
+    if not tmp_repo_file.exists():
         return None
-    path_str = TMP_REPO_FILE.read_text().strip()
+    path_str = tmp_repo_file.read_text().strip()
     if not path_str:
         return None
     p = Path(path_str)
     return p if p.exists() and (p / ".git").exists() else None
 
 
-def write_tmp_repo(path: Path) -> None:
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    TMP_REPO_FILE.write_text(str(path))
+def write_tmp_repo(path: Path, instance_id: str | None = None) -> None:
+    """Write tmp repo path to instance-specific tracking file."""
+    tmp_base = get_tmp_base(instance_id)
+    tmp_base.mkdir(parents=True, exist_ok=True)
+    tmp_repo_file = get_tmp_repo_file(instance_id)
+    tmp_repo_file.write_text(str(path))
 
 
 # ── phase 1: clone or sync ────────────────────────────────────────────────────
 
-def phase1_clone(repo_url: str, branch: str, dry_run: bool) -> dict:
+def phase1_clone(repo_url: str, branch: str, dry_run: bool, instance_id: str | None = None) -> dict:
     import re
     # derive directory name from repo url
     name = re.sub(r"\.git$", "", repo_url.rstrip("/").split("/")[-1])
-    target = TMP_BASE / name
+    tmp_base = get_tmp_base(instance_id)
+    target = tmp_base / name
 
     if dry_run:
-        return {"phase": "clone", "dry_run": True, "target": str(target), "url": repo_url, "branch": branch}
+        return {"phase": "clone", "dry_run": True, "target": str(target), "url": repo_url, "branch": branch, "instance_id": instance_id}
 
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    tmp_base.mkdir(parents=True, exist_ok=True)
     result = run([
         "git", "clone", "--recurse-submodules", repo_url, str(target), "--branch", branch
     ], check=False)
@@ -89,13 +121,13 @@ def phase1_clone(repo_url: str, branch: str, dry_run: bool) -> dict:
     # switch each submodule to the branch checked out in the source repo
     branch_result = checkout_source_branches(SOURCE_ROOT, target)
 
-    write_tmp_repo(target)
-    return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result}
+    write_tmp_repo(target, instance_id)
+    return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result, "instance_id": instance_id}
 
 
-def phase1_sync(repo_path: Path, branch: str, dry_run: bool) -> dict:
+def phase1_sync(repo_path: Path, branch: str, dry_run: bool, instance_id: str | None = None) -> dict:
     if dry_run:
-        return {"phase": "sync", "dry_run": True, "path": str(repo_path), "branch": branch}
+        return {"phase": "sync", "dry_run": True, "path": str(repo_path), "branch": branch, "instance_id": instance_id}
 
     errors = []
     cwd = str(repo_path)
@@ -126,8 +158,8 @@ def phase1_sync(repo_path: Path, branch: str, dry_run: bool) -> dict:
     branch_result = checkout_source_branches(SOURCE_ROOT, repo_path)
 
     if errors:
-        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path), "branches": branch_result}
-    return {"phase": "sync", "ok": True, "path": str(repo_path), "branches": branch_result}
+        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path), "branches": branch_result, "instance_id": instance_id}
+    return {"phase": "sync", "ok": True, "path": str(repo_path), "branches": branch_result, "instance_id": instance_id}
 
 
 # ── phase 2: verification gate ────────────────────────────────────────────────
@@ -223,26 +255,29 @@ def phase2_gate(repo_path: Path) -> dict:
 
 # ── phase 3: provision ────────────────────────────────────────────────────────
 
-def phase3_provision(repo_path: Path, dry_run: bool) -> dict:
+def phase3_provision(repo_path: Path, dry_run: bool, instance_id: str | None = None) -> dict:
     bin_dir = repo_path / "multi_agent_ide_java_parent" / "multi_agent_ide" / "bin"
 
     if dry_run:
-        return {"phase": "provision", "dry_run": True, "bin_dir": str(bin_dir)}
+        return {"phase": "provision", "dry_run": True, "bin_dir": str(bin_dir), "instance_id": instance_id}
 
     bin_dir.mkdir(parents=True, exist_ok=True)
-    write_tmp_repo(repo_path)
+    write_tmp_repo(repo_path, instance_id)
 
-    return {"phase": "provision", "ok": True, "bin_dir": str(bin_dir), "path": str(repo_path)}
+    return {"phase": "provision", "ok": True, "bin_dir": str(bin_dir), "path": str(repo_path), "instance_id": instance_id}
 
 
 # ── status check ─────────────────────────────────────────────────────────────
 
-def status() -> dict:
-    repo = read_tmp_repo()
+def status(instance_id: str | None = None) -> dict:
+    """Check status of tmp repo for given instance_id."""
+    repo = read_tmp_repo(instance_id)
+    tmp_repo_file = get_tmp_repo_file(instance_id)
     if not repo:
-        return {"status": "no_tmp_repo", "tmp_repo_file": str(TMP_REPO_FILE)}
+        return {"status": "no_tmp_repo", "tmp_repo_file": str(tmp_repo_file), "instance_id": instance_id}
     gate = phase2_gate(repo)
     gate["status"] = "ok" if gate["ok"] else "gate_failed"
+    gate["instance_id"] = instance_id
     return gate
 
 
@@ -254,6 +289,8 @@ def main() -> None:
                         help="Repository URL to clone (default: MULTI_AGENT_IDE_REPO_URL or GitHub URL)")
     parser.add_argument("--branch", default="main",
                         help="Branch to clone/sync to (default: main)")
+    parser.add_argument("--instance-id", default=None,
+                        help="Instance ID for parallel goal isolation (default: None = single-instance mode). When provided, uses /private/tmp/multi_agent_ide_parent/<instance-id>")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print actions without executing")
     parser.add_argument("--skip-deploy", action="store_true",
@@ -264,29 +301,35 @@ def main() -> None:
                         help="Clone fresh even if a valid tmp repo exists")
     args = parser.parse_args()
 
+    # Log instance-id for debugging
+    if args.instance_id:
+        sys.stderr.write(f"[clone_or_pull] Using instance-id: {args.instance_id}\n")
+    else:
+        sys.stderr.write("[clone_or_pull] Using default single-instance mode (no instance-id)\n")
+
     if args.status:
-        print(json.dumps(status(), indent=2))
+        print(json.dumps(status(args.instance_id), indent=2))
         return
 
     results = []
 
     # Phase 1
-    existing = None if args.force_clone else read_tmp_repo()
+    existing = None if args.force_clone else read_tmp_repo(args.instance_id)
     if existing:
-        r1 = phase1_sync(existing, args.branch, args.dry_run)
+        r1 = phase1_sync(existing, args.branch, args.dry_run, args.instance_id)
         repo_path = existing
     else:
-        r1 = phase1_clone(args.repo_url, args.branch, args.dry_run)
+        r1 = phase1_clone(args.repo_url, args.branch, args.dry_run, args.instance_id)
         if not args.dry_run and not r1.get("ok"):
             print(json.dumps({"ok": False, "results": [r1]}, indent=2))
             sys.exit(1)
-        repo_path = Path(r1.get("path", "")) if not args.dry_run else TMP_BASE / "dry-run"
+        repo_path = Path(r1.get("path", "")) if not args.dry_run else get_tmp_base(args.instance_id) / "dry-run"
     results.append(r1)
 
     if args.dry_run:
         results.append({"phase": "gate", "dry_run": True})
         results.append({"phase": "provision", "dry_run": True})
-        print(json.dumps({"ok": True, "dry_run": True, "results": results}, indent=2))
+        print(json.dumps({"ok": True, "dry_run": True, "results": results, "instance_id": args.instance_id}, indent=2))
         return
 
     # Phase 2
@@ -297,12 +340,15 @@ def main() -> None:
         sys.exit(2)
 
     # Phase 3
-    r3 = phase3_provision(repo_path, args.dry_run)
+    r3 = phase3_provision(repo_path, args.dry_run, args.instance_id)
     results.append(r3)
 
-    output = {"ok": True, "results": results, "path": str(repo_path)}
+    output = {"ok": True, "results": results, "path": str(repo_path), "instance_id": args.instance_id}
     if args.skip_deploy:
-        output["next_step"] = f"python {Path(__file__).parent}/deploy_restart.py --project-root {repo_path}"
+        deploy_cmd = f"python {Path(__file__).parent}/deploy_restart.py --project-root {repo_path}"
+        if args.instance_id:
+            deploy_cmd += f" --instance-id {args.instance_id}"
+        output["next_step"] = deploy_cmd
     print(json.dumps(output, indent=2))
 
 
