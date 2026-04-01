@@ -31,7 +31,7 @@ from pathlib import Path
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-DEFAULT_REPO_URL = "https://github.com/haydenrear/multi_agent_ide_parent.git"
+DEFAULT_REPO_URL = "git@github.com:haydenrear/multi_agent_ide_java_parent.git"
 TMP_BASE = Path("/private/tmp/multi_agent_ide_parent")
 TMP_REPO_FILE = TMP_BASE / "tmp_repo.txt"
 
@@ -64,6 +64,34 @@ def write_tmp_repo(path: Path) -> None:
     TMP_REPO_FILE.write_text(str(path))
 
 
+def fixup_ssh_remotes(repo_path: Path) -> list[str]:
+    """Convert any HTTPS GitHub origin URLs to SSH format for root and all submodules."""
+    import re
+    fixed = []
+
+    def fix_origin(cwd: str, label: str) -> None:
+        r = run(["git", "remote", "get-url", "origin"], cwd=cwd, check=False)
+        if r.returncode != 0:
+            return
+        url = r.stdout.strip()
+        m = re.match(r"https://github\.com/([^/]+)/(.+)", url)
+        if m:
+            ssh_url = f"git@github.com:{m.group(1)}/{m.group(2)}"
+            run(["git", "remote", "set-url", "origin", ssh_url], cwd=cwd, check=False)
+            fixed.append(f"{label}: {url} → {ssh_url}")
+
+    fix_origin(str(repo_path), "root")
+
+    r = run(["git", "submodule", "foreach", "--recursive", "--quiet", "echo $displaypath"],
+            cwd=str(repo_path), check=False)
+    for sub in [p.strip() for p in r.stdout.splitlines() if p.strip()]:
+        sub_path = repo_path / sub
+        if sub_path.exists():
+            fix_origin(str(sub_path), sub)
+
+    return fixed
+
+
 # ── phase 1: clone or sync ────────────────────────────────────────────────────
 
 def phase1_clone(repo_url: str, branch: str, dry_run: bool) -> dict:
@@ -86,11 +114,14 @@ def phase1_clone(repo_url: str, branch: str, dry_run: bool) -> dict:
     run(["git", "submodule", "foreach", "--recursive", "git reset --hard || true"],
         cwd=str(target), check=False)
 
+    # convert any HTTPS origin URLs to SSH
+    ssh_fixed = fixup_ssh_remotes(target)
+
     # switch each submodule to the branch checked out in the source repo
     branch_result = checkout_source_branches(SOURCE_ROOT, target)
 
     write_tmp_repo(target)
-    return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result}
+    return {"phase": "clone", "ok": True, "path": str(target), "branches": branch_result, "ssh_fixup": ssh_fixed}
 
 
 def phase1_sync(repo_path: Path, branch: str, dry_run: bool) -> dict:
