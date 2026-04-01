@@ -12,6 +12,7 @@ Usage:
 """
 import argparse
 import json
+import re
 import sys
 import urllib.request
 import urllib.error
@@ -54,6 +55,46 @@ def show_graph(node, depth=0):
         print(f"{pad}  ⚠ PENDING: {p}")
     for child in node.get("children", [])[:8]:
         show_graph(child, depth + 1)
+
+
+def get_goal_completed_info(host, node_id):
+    """Fetch GOAL_COMPLETED event and extract worktreePath if available."""
+    try:
+        body = {"nodeId": node_id, "limit": 100, "sort": "desc"}
+        result = post(host, "/api/ui/nodes/events", body)
+        if not result:
+            return None
+        items = result.get("items", [])
+        # Find the most recent GOAL_COMPLETED event
+        for item in items:
+            if item.get("eventType") == "GOAL_COMPLETED":
+                # Try to extract worktreePath from the event summary or payload
+                summary = item.get("summary", "")
+                payload = item.get("payload")
+                # Check if worktreePath is in the summary or payload
+                if payload:
+                    if isinstance(payload, str):
+                        try:
+                            payload_obj = json.loads(payload)
+                            if isinstance(payload_obj, dict):
+                                worktree_path = payload_obj.get("worktreePath") or payload_obj.get("path")
+                                if worktree_path:
+                                    return worktree_path
+                        except Exception:
+                            pass
+                    elif isinstance(payload, dict):
+                        worktree_path = payload.get("worktreePath") or payload.get("path")
+                        if worktree_path:
+                            return worktree_path
+                # Parse from summary if payload not available
+                if "worktreePath" in summary or "worktree" in summary.lower():
+                    # Extract path-like string from summary
+                    match = re.search(r'worktreePath["\']?\s*[:=]\s*["\']?(/[^\s"\']+)', summary)
+                    if match:
+                        return match.group(1)
+        return None
+    except Exception:
+        return None
 
 
 def summarize_payload(pt):
@@ -117,6 +158,14 @@ def poll_once(host, node_id, limit):
         error_flag = f"  NODE_ERROR={node_errors}" if node_errors else ""
         print(f"events={s['totalEvents']}  chatMsgs={s['chatMessageEvents']}  "
               f"errors={s['recentErrorCount']}{error_flag}{completion}")
+
+        # Extract and display worktreePath when GOAL_COMPLETED is detected
+        if goal_done:
+            worktree_path = get_goal_completed_info(host, node_id)
+            if worktree_path:
+                print(f"    Worktree Path: {worktree_path}")
+                print(f"    Merge Command: merge-from-worktree.py --worktree-path {worktree_path}")
+
         root = graph.get("root")
         if root:
             show_graph(root)
