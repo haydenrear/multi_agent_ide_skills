@@ -125,9 +125,48 @@ def phase1_sync(repo_path: Path, branch: str, dry_run: bool) -> dict:
     # switch each submodule to the branch checked out in the source repo
     branch_result = checkout_source_branches(SOURCE_ROOT, repo_path)
 
+    # Generate summary report for branch synchronization status
+    switched_list = branch_result.get("switched", [])
+    failed_list = branch_result.get("failed", [])
+
+    # Count submodules by status
+    num_switched = len(switched_list)
+    num_failed = len(failed_list)
+
+    # Get total submodule count from source repo
+    r = run(["git", "submodule", "foreach", "--recursive", "--quiet", "echo $displaypath"],
+            cwd=str(SOURCE_ROOT), check=False)
+    total_submodules = len([p.strip() for p in r.stdout.splitlines() if p.strip()])
+
+    # Generate status report with summary
+    summary = {
+        "total_submodules": total_submodules,
+        "switched_to_requested_branch": num_switched,
+        "failed": num_failed,
+        "consistent_state": num_failed == 0
+    }
+
+    # Create human-readable status report line
+    if num_failed == 0 and num_switched > 0:
+        status_report = f"All {num_switched} submodules successfully switched to requested branch"
+    elif num_failed == 0 and num_switched == 0:
+        status_report = "No submodules to synchronize"
+    else:
+        status_report = f"{num_switched} succeeded | {num_failed} failed"
+
+    # Log summary for visibility
+    import sys
+    print(f"[phase1_sync] Branch sync summary: {status_report}", file=sys.stderr)
+
+    branch_result_with_summary = {
+        **branch_result,
+        "summary": summary,
+        "status_report": status_report
+    }
+
     if errors:
-        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path), "branches": branch_result}
-    return {"phase": "sync", "ok": True, "path": str(repo_path), "branches": branch_result}
+        return {"phase": "sync", "ok": False, "errors": errors, "path": str(repo_path), "branches": branch_result_with_summary}
+    return {"phase": "sync", "ok": True, "path": str(repo_path), "branches": branch_result_with_summary}
 
 
 # ── phase 2: verification gate ────────────────────────────────────────────────
