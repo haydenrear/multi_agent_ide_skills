@@ -263,9 +263,75 @@ Combine with --level for focused discovery:
     elif args.level == 3:
         output = render_detail(docs, args.tag, args.path)
     else:
-        output = docs
+        output = render_full(docs, args.tag, args.path)
 
     print(json.dumps(output, indent=2))
+
+
+def collect_refs(schema: Any, refs: set[str]) -> None:
+    """Recursively collect all $ref targets from a schema."""
+    if not isinstance(schema, dict):
+        return
+    if "$ref" in schema:
+        refs.add(schema["$ref"].split("/")[-1])
+    for v in schema.values():
+        if isinstance(v, dict):
+            collect_refs(v, refs)
+        elif isinstance(v, list):
+            for item in v:
+                collect_refs(item, refs)
+
+
+def render_full(docs: dict[str, Any], tag_filter: str | None,
+                path_filter: str | None) -> dict[str, Any]:
+    """Level 4: filtered paths + only the referenced component schemas."""
+    if not tag_filter and not path_filter:
+        return docs
+
+    filtered_paths: dict[str, Any] = {}
+    for path, path_item in docs.get("paths", {}).items():
+        if not path_matches(path, path_filter):
+            continue
+        if tag_filter:
+            filtered_ops = {}
+            for method, op in path_item.items():
+                if not isinstance(op, dict):
+                    filtered_ops[method] = op
+                    continue
+                tags = op.get("tags", ["(untagged)"])
+                if any(t.lower() == tag_filter.lower() for t in tags):
+                    filtered_ops[method] = op
+            if filtered_ops:
+                filtered_paths[path] = filtered_ops
+        else:
+            filtered_paths[path] = path_item
+
+    # collect all referenced schemas transitively
+    refs: set[str] = set()
+    collect_refs(filtered_paths, refs)
+    all_schemas = docs.get("components", {}).get("schemas", {})
+    # resolve transitively
+    seen: set[str] = set()
+    queue = list(refs)
+    while queue:
+        name = queue.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in all_schemas:
+            child_refs: set[str] = set()
+            collect_refs(all_schemas[name], child_refs)
+            queue.extend(child_refs - seen)
+
+    filtered_schemas = {k: v for k, v in all_schemas.items() if k in seen}
+
+    result: dict[str, Any] = {
+        "openapi": docs.get("openapi"),
+        "paths": filtered_paths,
+    }
+    if filtered_schemas:
+        result["components"] = {"schemas": filtered_schemas}
+    return result
 
 
 if __name__ == "__main__":
