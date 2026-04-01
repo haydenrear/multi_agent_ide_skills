@@ -153,7 +153,7 @@ def branch_exists_in_remote(cwd: str, branch: str) -> bool:
     if r.returncode != 0:
         return False
     remote_branches = [b.strip() for b in r.stdout.splitlines()]
-    return any(f"origin/{branch}" in b for b in remote_branches)
+    return any(b == f"origin/{branch}" for b in remote_branches)
 
 
 def checkout_source_branches(source_root: Path, tmp_path: Path) -> dict:
