@@ -147,29 +147,110 @@ def is_detached(cwd: str) -> bool:
     return get_branch(cwd) is None
 
 
+def branch_exists_in_remote(cwd: str, branch: str) -> bool:
+    """Check if a branch exists in the remote (origin/<branch>)."""
+    r = run(["git", "branch", "-r"], cwd=cwd, check=False)
+    if r.returncode != 0:
+        return False
+    remote_branches = [b.strip() for b in r.stdout.splitlines()]
+    return any(f"origin/{branch}" in b for b in remote_branches)
+
+
 def checkout_source_branches(source_root: Path, tmp_path: Path) -> dict:
     """For each submodule, read the branch checked out in the source repo and
-    switch the corresponding submodule in the tmp clone to that branch."""
+    switch the corresponding submodule in the tmp clone to that branch.
+
+    If the requested branch doesn't exist in a submodule, fall back to 'main'.
+    Logs detailed per-submodule information for debugging.
+    """
     r = run(["git", "submodule", "foreach", "--recursive", "--quiet", "echo $displaypath"],
             cwd=str(source_root), check=False)
     submodule_paths = [p.strip() for p in r.stdout.splitlines() if p.strip()]
 
-    switched, failed = [], []
+    switched, fallback, failed = [], [], []
+
+    print(f"[checkout_source_branches] Processing {len(submodule_paths)} submodules", file=sys.stderr)
+
     for sub in submodule_paths:
         source_sub = source_root / sub
         tmp_sub = tmp_path / sub
         if not source_sub.exists() or not tmp_sub.exists():
+            print(f"  [{sub}] Skipped: source or tmp directory missing", file=sys.stderr)
             continue
-        branch = get_branch(str(source_sub))
-        if not branch:
-            continue  # source is also detached — nothing to switch to
-        r2 = run(["git", "switch", branch], cwd=str(tmp_sub), check=False)
-        if r2.returncode == 0:
-            switched.append(f"{sub}→{branch}")
-        else:
-            failed.append(f"{sub}: {r2.stderr.strip()}")
 
-    return {"switched": switched, "failed": failed}
+        source_branch = get_branch(str(source_sub))
+        if not source_branch:
+            print(f"  [{sub}] Skipped: source is detached HEAD", file=sys.stderr)
+            continue
+
+        tmp_cwd = str(tmp_sub)
+
+        # Check if the requested branch exists in the remote
+        if branch_exists_in_remote(tmp_cwd, source_branch):
+            # Branch exists, attempt to switch
+            r2 = run(["git", "switch", source_branch], cwd=tmp_cwd, check=False)
+            if r2.returncode == 0:
+                switched.append({
+                    "submodule": sub,
+                    "branch": source_branch,
+                    "status": "switched"
+                })
+                print(f"  [{sub}] ✓ Switched to {source_branch}", file=sys.stderr)
+            else:
+                # Switch failed even though branch exists in remote
+                failed.append({
+                    "submodule": sub,
+                    "attempted_branch": source_branch,
+                    "error": r2.stderr.strip()
+                })
+                print(f"  [{sub}] ✗ Failed to switch to {source_branch}: {r2.stderr.strip()}", file=sys.stderr)
+        else:
+            # Branch doesn't exist in remote, attempt fallback to main
+            print(f"  [{sub}] Branch '{source_branch}' not found in remote, attempting fallback to main", file=sys.stderr)
+
+            if branch_exists_in_remote(tmp_cwd, "main"):
+                r2 = run(["git", "switch", "main"], cwd=tmp_cwd, check=False)
+                if r2.returncode == 0:
+                    fallback.append({
+                        "submodule": sub,
+                        "requested_branch": source_branch,
+                        "fallback_branch": "main",
+                        "reason": "requested branch does not exist in submodule"
+                    })
+                    print(f"  [{sub}] ↻ Fell back to main (requested: {source_branch})", file=sys.stderr)
+                else:
+                    # Fallback to main also failed
+                    failed.append({
+                        "submodule": sub,
+                        "requested_branch": source_branch,
+                        "attempted_fallback": "main",
+                        "error": f"main fallback failed: {r2.stderr.strip()}"
+                    })
+                    print(f"  [{sub}] ✗ Failed to fall back to main: {r2.stderr.strip()}", file=sys.stderr)
+            else:
+                # Neither requested branch nor main exists
+                failed.append({
+                    "submodule": sub,
+                    "requested_branch": source_branch,
+                    "error": f"Neither '{source_branch}' nor 'main' found in remote"
+                })
+                print(f"  [{sub}] ✗ Neither '{source_branch}' nor 'main' found in remote", file=sys.stderr)
+
+    summary = {
+        "total_submodules": len(submodule_paths),
+        "on_requested_branch": len(switched),
+        "on_fallback_branch": len(fallback),
+        "failed": len(failed)
+    }
+
+    print(f"[checkout_source_branches] Summary: {len(switched)} on requested, {len(fallback)} on fallback, {len(failed)} failed", file=sys.stderr)
+
+    return {
+        "switched": switched,
+        "fallback": fallback,
+        "failed": failed,
+        "summary": summary
+    }
 
 
 def has_dirty_files(cwd: str) -> bool:
