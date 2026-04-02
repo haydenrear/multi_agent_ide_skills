@@ -116,6 +116,18 @@ curl -X POST http://localhost:8080/api/ui/goals/start \
   }'
 ```
 
+**`repositoryUrl` must be a real local path** (e.g. `/private/tmp/multi_agent_ide_parent/multi_agent_ide_parent/.git`) — not a placeholder. Read it from `tmp_repo.txt`:
+```bash
+TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt)
+# Then use "$TMP_REPO/.git" as repositoryUrl
+```
+
+**Verify the goal actually started** — always check the application log immediately after submitting:
+```bash
+python skills/multi_agent_ide_skills/multi_agent_ide_debug/executables/error_search.py --type "Repository did not exist" --limit 3
+```
+Common failure: `Repository did not exist: REPO_PLACEHOLDER` — means `repositoryUrl` was not resolved to the actual path. The `POST` response returns `"status": "started"` even when the async executor fails immediately, so the HTTP response alone is **not** proof the goal is running.
+
 ### Step 4 — Poll workflow graph (use subscribe mode)
 
 **Primary method — subscribe mode (preferred):**
