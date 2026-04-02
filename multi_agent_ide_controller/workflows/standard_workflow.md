@@ -69,14 +69,26 @@ cd "$TMP_REPO/multi_agent_ide_java_parent" && git checkout main && git pull orig
 # Only pull submodules that actually have changes — skip others
 ```
 
-**Pre-deploy verification gate (required, do not skip):**
+**Pre-deploy verification gate (required, do not skip — BLOCKS Step 2):**
+
+This gate confirms the tmp repo matches what you pushed from the source repo. Run these commands **in the tmp repo**, then compare every SHA against the source repo. If any mismatch, do NOT proceed to deploy.
+
 ```bash
+TMP_REPO=$(cat /private/tmp/multi_agent_ide_parent/tmp_repo.txt)
+cd "$TMP_REPO"
 git status --short
 git submodule foreach --recursive 'git status --short || true'
-git rev-parse --short HEAD
-git -C multi_agent_ide_java_parent rev-parse --short HEAD
+
+# Print tmp repo SHAs
+echo "=== TMP REPO SHAs ==="
+echo "parent:     $(git rev-parse --short HEAD)"
+echo "java_parent: $(git -C multi_agent_ide_java_parent rev-parse --short HEAD)"
+echo "buildSrc:    $(git -C buildSrc rev-parse --short HEAD)"
+echo "skills:      $(git -C skills rev-parse --short HEAD)"
+echo "skills/mai:  $(git -C skills/multi_agent_ide_skills rev-parse --short HEAD)"
 ```
-Compare SHAs against what you just pushed. If any repo/submodule is detached, not on `main`, or SHA doesn't match — stop and fix before proceeding.
+
+Then in your **source repo**, run the same SHA commands and confirm they match. If any repo/submodule is detached, not on `main`, or SHA doesn't match — stop and fix before proceeding. Common fix: you forgot to pull a submodule (use Case 2 cd-and-pull pattern above).
 
 After sync, provision executor cwd:
 ```bash
