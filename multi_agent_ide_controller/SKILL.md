@@ -195,26 +195,16 @@ The standard workflow covers: push/sync → deploy → start goal → poll workf
 
 ---
 
-## Testing matrix
+## Testing & Validation
 
-Run tests before deploying code changes:
+**Testing matrix and validation protocol have moved to `multi_agent_ide_validation/SKILL.md`.**
 
-| Test suite | Approximate duration | Bash timeout |
-|------------|---------------------|--------------|
-| Unit tests (`./gradlew :multi_agent_ide_java_parent:multi_agent_ide:test`) | ~3 minutes | 180000ms |
-| Spring integration (`./gradlew :multi_agent_ide_java_parent:multi_agent_ide:test -Pprofile=integration`) | ~5-10 minutes | 600000ms |
-| Full pipeline (`multi_agent_ide_java_parent/tests.sh`) | ~25 minutes | 900000ms |
-| ACP integration (`./gradlew :multi_agent_ide_java_parent:multi_agent_ide:test -Pprofile=acp-integration`) | ~60 minutes | 3600000ms |
-| ACP chat model (`./gradlew :multi_agent_ide_java_parent:acp-cdc-ai:test -Pprofile=acp-integration`) | ~3 minutes | 3600000ms |
+Load the `multi_agent_ide_validation` skill for:
+- Test suite commands, durations, and timeouts
+- The full validation protocol (surface/invariant/exploration analysis)
+- Controller review gates for test execution oversight
 
-- ACP chat model tests matter only when working on base-level ACP/Claude Code or Codex.
-- Skip tests that don't cover your change surface.
-- For `multi_agent_ide` integration tests: must use `-Pprofile=integration`, otherwise `**/integration/**` is excluded.
-- For ACP chat model tests in `acp-cdc-ai`: must use `-Pprofile=acp-integration`.
-- Do not run in parallel sub-agents, with async tasks, or as background tasks - poll manually every 5-10 mins when running long-running tests.
-
-### CRITICAL: Use `--info` only when piping Gradle output to a file
-Do not add `--info` for interactive runs. Use it only when redirecting to a log file.
+The validation skill is injected into the ticket collector checklist at step 15 (START_VALIDATION). See `conversational-topology/checklist-ticket-collector.md` for the full protocol.
 
 ### Polling pattern for workflow monitoring
 

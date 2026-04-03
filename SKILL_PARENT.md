@@ -11,6 +11,7 @@ This directory contains all controller skills for operating the `multi_agent_ide
 | `multi_agent_ide_api` | **Use this for all API interaction.** Swagger-first endpoint discovery via `scripts/api_schema.py`, OpenAPI schema inspection, propagator/filter/transformer registration. **Always use `api_schema.py` to discover endpoint shapes before constructing any curl call — never guess field names.** |
 | `multi_agent_ide_debug` | **Use this for all log searching.** Log locations, `error_search.py` (summary + detail modes with `error_patterns.csv`), error triage, stall detection. **Never grep the log files directly — use `error_search.py`.** |
 | `multi_agent_ide_contracts` | Authoritative schemas not available from OpenAPI — `Instruction` sealed interface, resolution enums, propagation types, filter/matcher enums. |
+| `multi_agent_ide_validation` | **Test validation lifecycle.** Surface/invariant/exploration analysis, testing matrix (unit ~3m, integration ~5-10m, full pipeline ~25m, ACP ~60m), test execution oversight. Loaded by the ticket collector during the validation phase and by the controller for test review gates. |
 | `multi_agent_ide_ui_test` | TUI state inspection and UI-level actions. Rarely needed; load only when the controller skill tells you to. |
 
 ## Skill responsibilities — who owns what
@@ -27,6 +28,8 @@ This is the canonical ownership table. When in doubt about which skill to consul
 | Resolve permissions/interrupts | `multi_agent_ide_controller` → `executables/permissions.py` / `interrupts.py` |
 | Deploy or restart the app | `multi_agent_ide_deploy` → `scripts/deploy_restart.py` |
 | Look up internal type schemas | `multi_agent_ide_contracts` |
+| Run tests / validate changes | `multi_agent_ide_validation` (testing matrix, surface/invariant/exploration analysis) |
+| Review test surface, invariants, exploration | `multi_agent_ide_validation` |
 
 ## Conversational topology documents
 
@@ -84,6 +87,7 @@ Every skill that involves repeated scripted operations has an `executables/` or 
 | `multi_agent_ide_api` | `scripts/` | listed in SKILL.md | Query OpenAPI schema, discover endpoints |
 | `multi_agent_ide_deploy` | `scripts/` | listed in SKILL.md | Clone/sync repo, deploy, restart |
 | `multi_agent_ide_debug` | `executables/` | `executables/reference.md` | Error search via `error_search.py` + `error_patterns.csv`, interrupt tracing |
+| `multi_agent_ide_validation` | `executables/` | `executables/reference.md` | Test surface/invariant/exploration analysis, trace validation, coverage reporting |
 
 ### Key executables — load these before any session
 
