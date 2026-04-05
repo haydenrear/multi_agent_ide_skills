@@ -48,7 +48,7 @@ For existing exploration entry points:
 
 ## Step 4 — Analyze Integration Tests
 
-Read the existing integration tests and trace data in `test_work/`.
+Read the existing integration tests, in the multi_agent_ide_java_parent/multi_agent_ide/src/test/java/com/hayden/multiagentide/integration package, and how we're writing the trace data.
 
 1. **Map proposed surface/invariant changes to test changes** — which tests need new assertions, which need new test methods
 2. **Check trace data logging** — for each proposed invariant, verify the trace writer captures the fields needed to validate it
