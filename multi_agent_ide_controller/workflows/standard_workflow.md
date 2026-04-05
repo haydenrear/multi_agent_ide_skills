@@ -148,6 +148,8 @@ python executables/poll.py <nodeId> --subscribe 600
 ```
 This checks for activity (permissions, interrupts, conversations, propagations) every 5 seconds. When activity is detected, it runs a full poll and prints the result. When a blocker appears (permission, interrupt, conversation needing response), you see it immediately instead of waiting for a sleep cycle. Use `--tick 10` to check less frequently if desired. The loop runs for up to 600 seconds (10 min) then does a final poll — restart it to continue monitoring.
 
+**IMPORTANT: Run subscribe mode synchronously, not in the background.** The entire point of subscribe mode is that it blocks until activity is detected and then wakes you up with actionable output. Do NOT run it as a background task and then sleep/poll the output file — that defeats the purpose. Run it as a normal synchronous Bash call with a long timeout (e.g., `timeout: 600000`). When it prints output, read it and act on it. When it finishes (timeout or goal completion), restart it if the goal is still running.
+
 **One-shot mode — for quick status checks:**
 ```bash
 python executables/poll.py <nodeId>
@@ -266,6 +268,16 @@ curl -X POST http://localhost:8080/api/permissions/resolve \
 
 Use `executables/permissions.py` to inspect and batch-resolve permissions in one step.
 
+**CRITICAL: `call_controller` permissions are NOT conversations.**
+When you see a pending permission for `mcp__agent-tools__call_controller`, this is the agent asking for *permission to use the tool* — it is NOT the conversation itself. The `input` field in the permission may show a preview of the justification message, but this is just the tool call payload, not an interactive conversation requiring your review.
+
+The correct flow is:
+1. **Permission appears** for `call_controller` → resolve it (typically `ALLOW_ALWAYS` since agents need to call the controller as part of normal operation)
+2. **After resolution**, the agent executes the tool call and a **conversation** appears in the conversations section of the next poll
+3. **The conversation** is where you load checklists, review agent justifications, and send responses (INJECT_RESEARCH, JUSTIFICATION_PASSED, etc.)
+
+Do not confuse these two steps. Do not load checklists or attempt adversarial review at the permission stage — that happens at the conversation stage.
+
 **Phase-boundary violations — REJECT and correct:**
 Discovery and planning agents are **read-only**. If a permission request shows a discovery agent, planning orchestrator, or planning agent attempting to write files (e.g., `create_new_file`, `replace_text_in_file`, `Terminal` with `cp`/`cat >`/`mkdir`), this is a phase-boundary violation:
 
@@ -319,6 +331,51 @@ curl -X POST http://localhost:8080/api/propagations/items/<itemId>/resolve \
 ```
 
 When a propagator escalates via `AskUserQuestionTool`, it creates an interrupt — resolve via `POST /api/interrupts/resolve` with structured choices in `resolutionNotes`. See `multi_agent_ide_validate_schema` for the `InterruptResolution` schema.
+
+### Step 9b — Respond to conversations
+
+When the poll shows a pending conversation (under `═══ CONVERSATIONS ═══`), this is an agent calling `call_controller` with a justification message. This is where you load the agent-specific checklist, review the justification, and respond.
+
+**Reading conversations:**
+```bash
+python executables/conversations.py <nodeId>
+```
+
+**Responding to conversations — required arguments:**
+```bash
+python executables/conversations.py <nodeId> --respond \
+  --interrupt-id "<interruptId>" \
+  --action-name <ACTION_NAME> \
+  --message "<your message>"
+```
+
+All three flags are required when responding:
+- `--interrupt-id` — the interrupt ID from the conversation output (e.g. `ak:01KNFJ.../01KNFJ...`). Copy this from the poll or conversations output.
+- `--action-name` — the checklist ACTION step you are executing (e.g. `EXTRACT_REQUIREMENTS`, `INJECT_RESEARCH`, `JUSTIFICATION_PASSED`). This must match an action from the agent-specific checklist.
+- `--message` — the text to send to the agent.
+
+Add `--no-expect-response` for terminal actions like `JUSTIFICATION_PASSED` where you do not expect the agent to call back.
+
+**Common mistake:** Forgetting `--interrupt-id` or `--action-name`. Both are always required. The poll and conversations output print the `interruptId` — copy it directly. The `--action-name` comes from the checklist ACTION table for the agent type you are reviewing.
+
+**Example — full conversation flow:**
+```bash
+# 1. Read the conversation
+python executables/conversations.py ak:01KNF...
+
+# 2. Respond with a checklist action (expects agent to call back)
+python executables/conversations.py ak:01KNF... --respond \
+  --interrupt-id "ak:01KNF.../01KNF..." \
+  --action-name INJECT_RESEARCH \
+  --message "I found that ArtifactService.toEntity() serializes full children at line 359. Please confirm and update your result."
+
+# 3. After agent calls back and you're satisfied, approve (terminal)
+python executables/conversations.py ak:01KNF... --respond \
+  --interrupt-id "ak:01KNF.../01KNF..." \
+  --action-name JUSTIFICATION_PASSED \
+  --message "Approved. Proceed." \
+  --no-expect-response
+```
 
 ### Step 10 — Continue polling (subscribe mode)
 
