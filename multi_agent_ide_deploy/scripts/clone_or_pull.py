@@ -221,6 +221,66 @@ def phase2_gate(repo_path: Path) -> dict:
     return result
 
 
+# ── phase 2b: pre-deploy SHA comparison (source vs tmp) ──────────────────────
+
+def get_all_submodule_shas(root: Path) -> dict[str, str]:
+    """Return {relative_path: short_sha} for root + all recursive submodules."""
+    shas = {}
+    root_sha = get_sha(str(root))
+    if root_sha:
+        shas["."] = root_sha
+
+    r = run(["git", "submodule", "foreach", "--recursive", "--quiet",
+             "echo $displaypath"], cwd=str(root), check=False)
+    for line in r.stdout.splitlines():
+        sub = line.strip()
+        if not sub:
+            continue
+        sub_path = root / sub
+        if sub_path.exists():
+            sha = get_sha(str(sub_path))
+            if sha:
+                shas[sub] = sha
+    return shas
+
+
+def _normalize_sha(sha1: str | None, sha2: str | None) -> tuple[str | None, str | None]:
+    """Truncate both SHAs to the shorter length so repos with different object counts compare equal."""
+    if sha1 and sha2:
+        min_len = min(len(sha1), len(sha2))
+        return sha1[:min_len], sha2[:min_len]
+    return sha1, sha2
+
+
+def phase2b_pre_deploy_verify(source_root: Path, tmp_path: Path) -> dict:
+    """Compare SHAs between source repo and tmp repo for all submodules.
+    Returns {"pre_deploy": true} if all match, or {"pre_deploy": false, "mismatches": [...]}."""
+    source_shas = get_all_submodule_shas(source_root)
+    tmp_shas = get_all_submodule_shas(tmp_path)
+
+    mismatches = []
+    all_keys = sorted(set(source_shas.keys()) | set(tmp_shas.keys()))
+    for key in all_keys:
+        src, tmp = _normalize_sha(source_shas.get(key), tmp_shas.get(key))
+        if src != tmp:
+            entry = {"repo": key}
+            if src:
+                entry["source"] = src
+            else:
+                entry["source"] = None
+                entry["note"] = "missing in source"
+            if tmp:
+                entry["tmp"] = tmp
+            else:
+                entry["tmp"] = None
+                entry["note"] = "missing in tmp"
+            mismatches.append(entry)
+
+    if not mismatches:
+        return {"phase": "pre_deploy", "pre_deploy": True}
+    return {"phase": "pre_deploy", "pre_deploy": False, "mismatches": mismatches}
+
+
 # ── phase 3: provision ────────────────────────────────────────────────────────
 
 def phase3_provision(repo_path: Path, dry_run: bool) -> dict:
@@ -285,6 +345,7 @@ def main() -> None:
 
     if args.dry_run:
         results.append({"phase": "gate", "dry_run": True})
+        results.append({"phase": "pre_deploy", "dry_run": True})
         results.append({"phase": "provision", "dry_run": True})
         print(json.dumps({"ok": True, "dry_run": True, "results": results}, indent=2))
         return
@@ -293,6 +354,13 @@ def main() -> None:
     r2 = phase2_gate(repo_path)
     results.append(r2)
     if not r2["ok"]:
+        print(json.dumps({"ok": False, "results": results}, indent=2))
+        sys.exit(2)
+
+    # Phase 2b — pre-deploy SHA verification (source vs tmp)
+    r2b = phase2b_pre_deploy_verify(SOURCE_ROOT, repo_path)
+    results.append(r2b)
+    if not r2b["pre_deploy"]:
         print(json.dumps({"ok": False, "results": results}, indent=2))
         sys.exit(2)
 
