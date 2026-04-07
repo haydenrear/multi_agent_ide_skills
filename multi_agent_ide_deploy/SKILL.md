@@ -131,10 +131,10 @@ git submodule foreach --recursive 'git push origin main || true'
 git add . && git commit -m "preparing" && git push origin main
 
 # 2. Clone/sync tmp repo and run verification gate
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py
 
 # 3. Deploy (reads tmp_repo.txt automatically — no --project-root needed)
-python skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudellama
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudellama
 ```
 
 Or use the `clone_or_pull.py` script which handles all three phases and prints the next deploy command when run with `--skip-deploy`.

@@ -99,7 +99,7 @@ mkdir -p <tmp-repo>/multi_agent_ide_java_parent/multi_agent_ide/bin
 
 ### Step 2 — Deploy
 ```
-python skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudellama
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/deploy_restart.py --profile claudellama
 ```
 No `--project-root` needed — reads the path from `tmp_repo.txt` automatically. If that file is missing, run `clone_or_pull.py` first.
 See `multi_agent_ide_deploy` skill for full deploy options and profiles. Default profile is `claudellama`.
@@ -445,7 +445,7 @@ The ticket agent's changes are merged into the main worktree at the end of each 
 
 ### Step 12 — Redeploy after changes
 ```bash
-python skills/multi_agent_ide_deploy/scripts/deploy_restart.py
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/deploy_restart.py
 ```
 
 ---
@@ -532,10 +532,10 @@ Instead of Step 1b in the standard workflow, use `clone_or_pull.py` with `--bran
 
 ```bash
 # Clone fresh with feature branch
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
 
 # Or sync an existing tmp repo to a feature branch
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
 ```
 
 This performs the 3-phase deploy prep (clone/sync → verification gate → provision) on the specified branch. All submodules are automatically switched to the feature branch if it exists in each submodule.
@@ -575,7 +575,7 @@ git add skills multi_agent_ide_java_parent && git commit -m "preparing" && git p
 Then sync the tmp repo to pull those changes:
 
 ```bash
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
 ```
 
 ### Merge feature branch back to main
@@ -618,7 +618,7 @@ If merge conflicts occur, resolve them in the source repo, commit, and push befo
 If you deployed agents on a feature branch and want to apply the merged result to the tmp repo on main, pull the updated main:
 
 ```bash
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch main
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch main
 ```
 
 This switches the tmp repo back to main and pulls all merged changes (including the feature branch work now integrated into main). You can then redeploy and continue work on main if needed.
@@ -725,7 +725,7 @@ git -C <tmp-repo> branch -v
 git -C <tmp-repo>/skills branch -v
 
 # Re-run verification gate
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --status
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --status
 ```
 
 **SHA mismatch between source and tmp repo:**
@@ -740,5 +740,5 @@ git submodule foreach --recursive 'git push origin feature/ticket-001 || true'
 git push origin feature/ticket-001
 
 # Then sync
-python skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
+python skills/multi_agent_ide_skills/multi_agent_ide_deploy/scripts/clone_or_pull.py --branch feature/ticket-001
 ```
