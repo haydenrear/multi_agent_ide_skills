@@ -168,17 +168,6 @@ Always check `GET /api/filters/attachables` first — it is the source of truth 
 | GET | `/api/transformers/layers/{layerId}/registrations` | List by layer |
 | GET | `/api/transformations/records` | List execution records |
 
-### Debug Runs (tag: "Debug Runs")
-
-| Method | Path | Operation |
-|--------|------|-----------|
-| POST | `/api/runs/start` | Start debug run |
-| GET | `/api/runs` | List runs (paginated) |
-| POST | `/api/runs/get` | Get run by ID |
-| POST | `/api/runs/timeline` | Get run timeline |
-| POST | `/api/runs/actions` | Apply action to run |
-| POST | `/api/runs/persistence-validation` | Trigger validation |
-
 ## Goal Tagging Policy
 - Treat tags as required for every new goal.
 - Prefer 3-8 short kebab-case descriptors covering:
