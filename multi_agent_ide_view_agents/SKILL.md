@@ -21,12 +21,14 @@ Use this skill to interact with mental models and their chain of custody. The CL
 
 ## Invocation
 
-All commands run via `uv run` from the Python parent workspace:
+All commands run via `uv run` targeting the `view_agents_utils` sub-package:
 
 ```bash
-uv run --project multi_agent_ide_python_parent \
+uv run --project multi_agent_ide_python_parent/packages/view_agents_utils \
   view-model <command> <PATH> [options...]
 ```
+
+> **Important:** The `view-model` entry point is defined in the `view_agents_utils` package, NOT the workspace root. Using `--project multi_agent_ide_python_parent` alone will fail with "command not found".
 
 The `<PATH>` argument is flexible — it accepts:
 - A view directory: `views/api-layer`
@@ -114,7 +116,7 @@ view-model add-ref <PATH> \
 - `--path` (required): JSONPath of the target section
 - `--file` (required): Source file path, relative to repo root
 - `--line-span`: Optional `start_line:line_count` for partial file reference
-- `--repo`: Repository root (default: `/repo`)
+- `--repo`: Repository root (default: `.` — current working directory)
 
 ### `view-model add-ref-root`
 
@@ -132,7 +134,7 @@ view-model add-ref-root views/mental-models \
 - `--path` (required): JSONPath of the target section
 - `--child-view` (required): Child view name
 - `--child-path` (required, repeatable): Child section JSONPath to reference
-- `--repo`: Repository root (default: `/repo`)
+- `--repo`: Repository root (default: `.` — current working directory)
 
 ### `view-model delete`
 
@@ -165,7 +167,7 @@ view-model render views/my-view --format json --repo /path/to/repo
 - `--path`: JSONPath to target a specific section (prints to stdout)
 - `--write / --no-write`: Write to file (default: yes for full, no for targeted)
 - `--include-refs / --no-refs`: Include file reference counts (default: yes)
-- `--repo`: Repository root (default: `/repo`)
+- `--repo`: Repository root (default: `.` — current working directory)
 
 ### `view-model files`
 
@@ -251,9 +253,9 @@ view-model render $VIEW --write --repo $REPO
 
 ## Tips and Tricks
 
-### Always pass `--repo` explicitly
+### `--repo` defaults to current working directory
 
-The default `--repo` is `/repo` (a Docker container path). When running locally, always pass the actual repo root:
+The default `--repo` is `.` (the current working directory). If you run commands from the repo root, this works automatically. If you run from a different directory, pass `--repo` explicitly:
 
 ```bash
 --repo /Users/you/IdeaProjects/multi_agent_ide_parent
@@ -296,15 +298,28 @@ The `--path` flag on `add-ref`, `update`, `delete`, `files`, and `search` is a *
 --path 'Section Name'                         # WRONG — will fail silently or error
 ```
 
-### Batch rendering with `render_all.py`
+### Batch rendering and staleness triage
 
-To render all views at once:
+Render all views and get a JSON summary of which are current vs stale:
 
 ```bash
-python views/render_all.py
+uv run --project multi_agent_ide_python_parent/packages/view_agents_utils \
+  view-model render --all --repo .
 ```
 
-This iterates all VIEW_NAMES and calls `render_cmd` for each.
+Progress goes to stderr; stdout is a JSON summary:
+
+```json
+{
+  "current_views": [{"view_name": "...", "view_path": "views/...", "sections": [...]}],
+  "stale_views": [{"view_name": "...", "stale_sections": [...], "refresh_command": "..."}],
+  "summary": {"total": 16, "current": 14, "stale": 2, "skipped": 0, "errored": 0}
+}
+```
+
+Views are discovered dynamically by scanning `views/` for directories with `regen.py`. Use `--views <name>` to restrict to specific views.
+
+The legacy `python views/render_all.py` script still works but delegates to the same command.
 
 ### Onboarding a new view
 

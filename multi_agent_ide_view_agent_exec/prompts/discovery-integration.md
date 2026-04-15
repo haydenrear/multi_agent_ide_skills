@@ -21,17 +21,16 @@ If no views are found, fall back to standard discovery methods. View generation 
 
 ### Phase 1: Parallel Per-View Analysis
 
-Each view gets its own Docker container running the query independently:
-- Container mounts the repo read-only at `/repo`
-- Only the target view's `mental-models/` is writable
-- Docker socket is mounted so the agent can invoke `view-agent-utils` containers for `view-model` and `view-custody` tool commands
-- The agent uses these tools to check staleness, read the mental model, and update stale sections as part of its reasoning
+Each view gets its own ACP agent subprocess running the query independently:
+- The ACP agent (e.g. `claude-agent-acp`) has terminal access and can run `view-model` CLI commands directly
+- Sandbox args control filesystem isolation — the agent can read the repo and write to the view's mental-models directory
+- The agent uses `view-model status`, `view-model render`, `view-model update` to check staleness, read content, and refresh stale sections
 - Each view returns a structured JSON response
 
 ### Phase 2: Root Synthesis
 
 After all per-view queries complete:
-- A root container reads all per-view mental models via `view-model show`
+- A root ACP agent reads all per-view mental models via `view-model render`
 - Uses `view-model status` to check for stale root sections
 - Synthesizes cross-view patterns, data flows, and architectural decisions
 - Returns a unified JSON response
@@ -39,8 +38,47 @@ After all per-view queries complete:
 ### Invocation
 
 ```bash
-python fan_out.py --repo /path/to/repo --model llama3.2 "Your query here"
+# Basic invocation
+python fan_out.py --repo /path/to/repo "Your query here"
+
+# With ACP args (sandbox, permissions)
+python fan_out.py --repo /path/to/repo \
+  --command claude-agent-acp \
+  --args '--permission-mode acceptEdits --add-dir /path/to/worktree' \
+  "Your query here"
+
+# With artifact key for tracing (from parent discovery/planning agent)
+python fan_out.py --repo /path/to/repo \
+  --artifact-key ak:01KJ... \
+  "Your query here"
 ```
+
+### ACP Artifact Key Threading
+
+When called from a discovery or planning agent, the parent agent's `ArtifactKey` is passed via `--artifact-key`. The exec script creates a child key for each view query, enabling end-to-end tracing:
+
+```
+Parent agent (ak:01KJ...)
+  └─ fan_out.py --artifact-key ak:01KJ...
+       ├─ view query: api-layer  (ak:01KJ.../01KK...)
+       ├─ view query: core-lib   (ak:01KJ.../01KL...)
+       └─ root synthesis         (ak:01KJ.../01KM...)
+```
+
+### Sandbox Args from application.yml
+
+The Java application's `application.yml` defines sandbox args per provider profile:
+
+```yaml
+providers:
+  claude:
+    command: claude-agent-acp
+    args: ${ACP_ARGS:}   # Enriched at runtime by SandboxTranslationStrategy
+```
+
+When the discovery/planning agent invokes the Python exec scripts, it passes the same sandbox args. The `SandboxTranslationStrategy` pipeline adds:
+- **Claude profile**: `--add-dir <worktree>`, `--permission-mode acceptEdits`
+- **Codex profile**: `-c cd=<worktree>`, `-c sandbox=workspace-write`
 
 ## How to Interpret Results
 
