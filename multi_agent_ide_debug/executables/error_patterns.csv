@@ -29,6 +29,7 @@ error_expression,description
 "ActionRetryListener: no BlackboardHistory",Action retry listener ran - but blackboard history not found
 "Resetting RESOLVED interruptibleContext",Interrupt context reset — previous interrupt cycle completed (RESOLVED); new REQUESTED context saved for fresh interrupt
 "Replacing REQUESTED interruptibleContext",Duplicate interrupt publish with different ID — previous REQUESTED context replaced; investigate if two call_controller invocations raced
+"publishInterruptWithContext on existing",Interrupt context not updated, found in unknown state - is not duplicate with new ID, does not need new context
 "publishInterruptWithContext on node.*in-progress status",Interrupt context in unexpected mid-lifecycle state (RESULT_STORED or STATUS_EMITTED) — new interrupt could not attach context; resolution may hang
 "publishInterruptWithContext: origin node.*not found in graph",Origin node missing from graph when publishing interrupt — interrupt will publish but without interruptibleContext on origin
 "publishInterruptWithContext: origin node.*not Interruptible",Origin node exists but doesn't implement Interruptible — interrupt will publish but context won't track on origin

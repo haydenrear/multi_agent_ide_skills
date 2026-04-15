@@ -16,7 +16,6 @@ Controller endpoints are organised under a common path prefix hierarchy:
   /api/filters/*       — filter policy CRUD
   /api/propagators/*   — propagator registration
   /api/transformers/*  — transformer registration
-  /api/runs/*          — debug run lifecycle and timeline
   /api/llm-debug/*     — extended debug UI (nodes, events, actions)
 
 Use --path to focus on any prefix in this hierarchy, e.g.:
@@ -235,7 +234,6 @@ Path hierarchy examples:
   --path /api/propagations    propagation items and records
   --path /api/transformations transformation records
   --path /api/filters         filter policy CRUD
-  --path /api/runs            debug run lifecycle and timeline
   --path /api/orchestrator    goal start and onboarding runs
 
 Combine with --level for focused discovery:
