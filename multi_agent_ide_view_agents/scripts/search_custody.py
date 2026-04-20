@@ -29,24 +29,32 @@ def _resolve_repo_root(mental_model_path: str) -> Path:
 
 
 def _find_uv_project() -> Path:
-    """Find the multi_agent_ide_python_parent workspace for uv run."""
+    """Find the view_agents_utils package for uv run.
+
+    The view-custody entry point is defined in view_agents_utils's pyproject.toml,
+    not the workspace root — uv must target the package directly.
+    """
     script_dir = Path(__file__).resolve().parent
     candidates = [
-        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent",
-        Path.cwd() / "multi_agent_ide_python_parent",
+        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent" / "packages" / "view_agents_utils",
+        Path.cwd() / "multi_agent_ide_python_parent" / "packages" / "view_agents_utils",
     ]
     for candidate in candidates:
         if (candidate / "pyproject.toml").exists():
             return candidate
     raise FileNotFoundError(
-        "Cannot find multi_agent_ide_python_parent workspace. "
-        "Run from the repo root or set UV_PROJECT env var."
+        "Cannot find view_agents_utils package. "
+        "Expected at multi_agent_ide_python_parent/packages/view_agents_utils/"
     )
 
 
 def run_search(path: str, extra_args: list[str]) -> int:
     """Run view-custody search with auto --repo resolution."""
+    repo_root = _resolve_repo_root(path)
     uv_project = _find_uv_project()
+
+    if "--repo" not in extra_args:
+        extra_args = ["--repo", str(repo_root)] + extra_args
 
     cmd = [
         "uv", "run", "--project", str(uv_project),

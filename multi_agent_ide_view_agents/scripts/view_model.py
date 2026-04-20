@@ -39,19 +39,22 @@ def _resolve_repo_root(mental_model_path: str) -> Path:
 
 
 def _find_uv_project() -> Path:
-    """Find the multi_agent_ide_python_parent workspace for uv run."""
-    # Try relative to this script first (skill scripts are in the repo)
+    """Find the view_agents_utils package for uv run.
+
+    The view-model entry point is defined in view_agents_utils's pyproject.toml,
+    not the workspace root — uv must target the package directly.
+    """
     script_dir = Path(__file__).resolve().parent
     candidates = [
-        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent",
-        Path.cwd() / "multi_agent_ide_python_parent",
+        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent" / "packages" / "view_agents_utils",
+        Path.cwd() / "multi_agent_ide_python_parent" / "packages" / "view_agents_utils",
     ]
     for candidate in candidates:
         if (candidate / "pyproject.toml").exists():
             return candidate
     raise FileNotFoundError(
-        "Cannot find multi_agent_ide_python_parent workspace. "
-        "Run from the repo root or set UV_PROJECT env var."
+        "Cannot find view_agents_utils package. "
+        "Expected at multi_agent_ide_python_parent/packages/view_agents_utils/"
     )
 
 

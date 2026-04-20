@@ -17,18 +17,22 @@ from pathlib import Path
 
 
 def _find_uv_project() -> Path:
-    """Find the multi_agent_ide_python_parent workspace for uv run."""
+    """Find the view_agent_exec package for uv run.
+
+    The view-agent entry point is defined in view_agent_exec's pyproject.toml,
+    not the workspace root — uv must target the package directly.
+    """
     script_dir = Path(__file__).resolve().parent
     candidates = [
-        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent",
-        Path.cwd() / "multi_agent_ide_python_parent",
+        script_dir.parent.parent.parent.parent / "multi_agent_ide_python_parent" / "packages" / "view_agent_exec",
+        Path.cwd() / "multi_agent_ide_python_parent" / "packages" / "view_agent_exec",
     ]
     for candidate in candidates:
         if (candidate / "pyproject.toml").exists():
             return candidate
     raise FileNotFoundError(
-        "Cannot find multi_agent_ide_python_parent workspace. "
-        "Run from the repo root or set UV_PROJECT env var."
+        "Cannot find view_agent_exec package. "
+        "Expected at multi_agent_ide_python_parent/packages/view_agent_exec/"
     )
 
 

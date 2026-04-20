@@ -2,108 +2,209 @@
 
 ## When to Use View-Agent Workflow
 
-Use the view-agent two-phase workflow when:
+Use the view-agent workflow when:
 1. The repository has a `views/` directory with generated views (check for `views/*/regen.py`)
-2. You need to understand the repository architecture
-3. The query benefits from parallel, focused analysis of different code modules
-4. You want to leverage existing mental models and chain of custody
+2. You need to understand the repository architecture or investigate conceptual drift
+3. The query benefits from parallel, focused analysis of independent conceptual units
+4. You want to leverage existing mental models and their chain of custody
 
-## How to Detect Available Views
+## Pre-Flight: Render and Triage
+
+Before querying, render all views to get a structured summary of which are current (queryable) vs stale (need maintenance):
 
 ```bash
-# Check if views exist
-ls views/*/regen.py 2>/dev/null
+uv run --project multi_agent_ide_python_parent/packages/view_agents_utils \
+  view-model render --all --repo .
 ```
 
-If no views are found, fall back to standard discovery methods. View generation is a prerequisite — use the `multi_agent_ide_view_generation` skill to create views first.
+Progress goes to stderr. Stdout is a JSON summary:
 
-## The Two-Phase Flow
+```json
+{
+  "current_views": [
+    {"view_name": "acp-module", "view_path": "views/acp-module", "sections": ["$.sections[\"...\"]"]}
+  ],
+  "stale_views": [
+    {
+      "view_name": "api-layer",
+      "view_path": "views/api-layer",
+      "stale_sections": [{"section_path": "...", "reasons": [{"reason": "content_hash_changed", "details": "..."}]}],
+      "refresh_command": "uv run --project ... view-model refresh views/api-layer/ --repo ."
+    }
+  ],
+  "summary": {"total": 16, "current": 14, "stale": 2, "skipped": 0, "errored": 0}
+}
+```
 
-### Phase 1: Parallel Per-View Analysis
+**Workflow:**
+1. Parse the JSON summary
+2. Fix stale views — run each `refresh_command`, then update mental models with `view-model update` + `view-model add-ref` as needed
+3. Query only current views (stale views are rejected by the runner's pre-flight check)
 
-Each view gets its own ACP agent subprocess running the query independently:
-- The ACP agent (e.g. `claude-agent-acp`) has terminal access and can run `view-model` CLI commands directly
-- Sandbox args control filesystem isolation — the agent can read the repo and write to the view's mental-models directory
-- The agent uses `view-model status`, `view-model render`, `view-model update` to check staleness, read content, and refresh stale sections
-- Each view returns a structured JSON response
+## Two Execution Patterns
 
-### Phase 2: Root Synthesis
+### Pattern 1: Manual Parallel Dispatch (preferred for targeted queries)
 
-After all per-view queries complete:
-- A root ACP agent reads all per-view mental models via `view-model render`
-- Uses `view-model status` to check for stale root sections
-- Synthesizes cross-view patterns, data flows, and architectural decisions
-- Returns a unified JSON response
+When you know which views are relevant, deploy multiple `query_view.py` calls as **parallel tool calls** — one per view, all in the same message. This avoids querying irrelevant views.
 
-### Invocation
+```
+# These run concurrently as parallel tool calls
+Tool call 1: python scripts/query_view.py --repo . --view acp-module "How does session lifecycle work?"
+Tool call 2: python scripts/query_view.py --repo . --view event-messaging "How does the event bus route?"
+Tool call 3: python scripts/query_view.py --repo . --view orchestration-model "How does goal execution work?"
+```
+
+Each returns structured JSON independently. Collect responses, write to a temp file, then run root synthesis:
 
 ```bash
-# Basic invocation
-python fan_out.py --repo /path/to/repo "Your query here"
+# Write collected responses to file
+cat > /tmp/view-responses.json << 'EOF'
+[...collected ViewAgentResponse objects...]
+EOF
 
-# With ACP args (sandbox, permissions)
-python fan_out.py --repo /path/to/repo \
-  --command claude-agent-acp \
-  --args '--permission-mode acceptEdits --add-dir /path/to/worktree' \
-  "Your query here"
+# Root synthesis
+python scripts/query_root.py \
+  --repo . \
+  --view-responses-file /tmp/view-responses.json \
+  "Synthesize findings about the execution architecture"
+```
 
-# With artifact key for tracing (from parent discovery/planning agent)
-python fan_out.py --repo /path/to/repo \
+### Pattern 2: Automated Fan-Out (broad codebase-wide analysis)
+
+When you need to query all views:
+
+```bash
+python scripts/fan_out.py \
+  --repo /path/to/repo \
+  "Analyze the codebase architecture"
+
+# With artifact key for tracing
+python scripts/fan_out.py \
+  --repo /path/to/repo \
   --artifact-key ak:01KJ... \
-  "Your query here"
+  "Analyze the codebase architecture"
 ```
 
-### ACP Artifact Key Threading
+The fan-out script:
+1. Discovers all view directories under `views/` (those with `regen.py`, excluding `mental-models/`)
+2. Launches one `query_view.py` subprocess per view in parallel via `ThreadPoolExecutor`
+3. Writes Phase 1 results to a temp file
+4. Launches `query_root.py` with `--view-responses-file` for cross-view synthesis
+5. Returns consolidated JSON
 
-When called from a discovery or planning agent, the parent agent's `ArtifactKey` is passed via `--artifact-key`. The exec script creates a child key for each view query, enabling end-to-end tracing:
+## How View Agents Execute
+
+View agents are **read-only subordinate workers** with bounded authority. They cannot modify views, update mental models, or write to the repository.
+
+Each per-view query:
+1. The runner (`run_view_query()`) performs a **pre-flight staleness check** — stale views are rejected with an error response containing refresh instructions
+2. A prompt is built with the view directory, repo root, and the skill documentation path
+3. An `ACPLLMProvider` creates an ACP session using the `claude-agent-acp` command (default model: `claude-haiku-4-5`)
+4. The built-in **read-only permission handler** denies any tool with write/edit/create/delete keywords
+5. The agent reads the mental model, follows source file references, and answers the query
+6. The agent returns a structured JSON response
+
+Root synthesis:
+1. The root runner (`run_root_query()`) receives Phase 1 per-view responses via `--view-responses-file`
+2. It provides the root mental model (`views/mental-models/`) plus the per-view responses to the root agent
+3. The root agent **composes child mental models** — it should not re-read source code that per-view agents already analyzed
+
+## Supervised Execution via FIFOs
+
+For interactive control over view agents (permission decisions, multi-turn conversations), use named pipes:
+
+### Permission FIFOs
+
+```bash
+PERM_DIR=$(mktemp -d)
+mkfifo "$PERM_DIR/permission_request"
+mkfifo "$PERM_DIR/permission_decision"
+
+python scripts/query_view.py \
+  --repo . --view api-layer \
+  --permission-fifo-dir "$PERM_DIR" \
+  "Explain the API" &
+```
+
+The agent writes `{"session_id": "...", "tool_call_id": "...", "tool_name": "..."}` to `permission_request`; the caller writes `{"allow": true/false}` to `permission_decision`.
+
+### Conversation FIFOs
+
+```bash
+CONV_DIR=$(mktemp -d)
+mkfifo "$CONV_DIR/conversation_response"
+mkfifo "$CONV_DIR/conversation_decision"
+
+python scripts/query_view.py \
+  --repo . --view api-layer \
+  --conversation-fifo-dir "$CONV_DIR" \
+  "Explain the API" &
+```
+
+The agent writes `{"response": "..."}` to `conversation_response`; the caller writes `{"action": "message", "content": "follow-up"}` or `{"action": "return"}` to `conversation_decision`. Max 10 follow-up turns.
+
+## ACP Artifact Key Threading
+
+When called from a discovery or planning agent, the parent `ArtifactKey` is passed via `--artifact-key` for end-to-end tracing:
 
 ```
 Parent agent (ak:01KJ...)
   └─ fan_out.py --artifact-key ak:01KJ...
-       ├─ view query: api-layer  (ak:01KJ.../01KK...)
-       ├─ view query: core-lib   (ak:01KJ.../01KL...)
-       └─ root synthesis         (ak:01KJ.../01KM...)
+       ├─ view query: api-layer     (traced via _current_artifact_key context var)
+       ├─ view query: acp-module    (traced via _current_artifact_key context var)
+       └─ root synthesis            (traced via _current_artifact_key context var)
 ```
 
-### Sandbox Args from application.yml
+The artifact key is set in the `acp_process.provider._current_artifact_key` context variable before the ACP session is created.
 
-The Java application's `application.yml` defines sandbox args per provider profile:
+## Script Options
 
-```yaml
-providers:
-  claude:
-    command: claude-agent-acp
-    args: ${ACP_ARGS:}   # Enriched at runtime by SandboxTranslationStrategy
-```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--repo` | (required) | Path to the repository |
+| `--view` | (required for query_view.py) | View name (e.g., `api-layer`) |
+| `--model` | `claude-haiku-4-5` | Model for the ACP session |
+| `--artifact-key` | (none) | Parent artifact key for tracing |
+| `--permission-fifo-dir` | (none) | Directory with permission named pipes |
+| `--conversation-fifo-dir` | (none) | Directory with conversation named pipes |
+| `--view-responses-file` | (none, query_root.py only) | JSON file with Phase 1 per-view responses |
 
-When the discovery/planning agent invokes the Python exec scripts, it passes the same sandbox args. The `SandboxTranslationStrategy` pipeline adds:
-- **Claude profile**: `--add-dir <worktree>`, `--permission-mode acceptEdits`
-- **Codex profile**: `-c cd=<worktree>`, `-c sandbox=workspace-write`
+## Response Format
 
-## How to Interpret Results
-
-The consolidated JSON output contains:
+All queries return structured `ViewAgentResponse` JSON:
 
 ```json
 {
-  "phase_1_views": [
-    {"view_name": "api-module", "response": "...", "error": null},
-    {"view_name": "core-lib", "response": "...", "error": null}
-  ],
-  "phase_2_root": {"view_name": "root", "response": "...", "error": null},
-  "views_queried": 2,
-  "views_succeeded": 2,
-  "views_failed": 0
+  "view_name": "api-layer",
+  "mode": "view",
+  "query": "...",
+  "response": "...",
+  "mental_model_updated": false,
+  "stale_sections_refreshed": [],
+  "metadata_files_created": [],
+  "error": null
 }
 ```
 
-- Check `views_failed` — if > 0, some views timed out or had errors
-- Per-view `error` fields explain individual failures
-- The root `response` provides the cross-view synthesis
+Fan-out returns consolidated output:
+
+```json
+{
+  "phase_1_views": [...per-view ViewAgentResponse objects...],
+  "phase_2_root": {...root ViewAgentResponse...},
+  "views_queried": 16,
+  "views_succeeded": 14,
+  "views_failed": 2
+}
+```
+
+- Check `views_failed` — if > 0, some views had errors (likely staleness rejections)
+- Per-view `error` fields explain individual failures (stale sections, ACP errors)
+- The root `response` provides cross-view synthesis
 
 ## Fallback When No Views Exist
 
 If the repository has no `views/` directory:
 1. Skip view-agent workflow entirely
 2. Use standard repository analysis (direct file reading, grep, etc.)
-3. Consider suggesting view generation for future queries
+3. Consider creating views using the `multi_agent_ide_view_generation` skill for future queries

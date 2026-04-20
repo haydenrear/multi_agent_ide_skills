@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -20,6 +22,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
+
+
+def _create_worker_fifos(
+    parent_fifo_dir: str, view_name: str, fifo_type: str,
+) -> str:
+    """Create a per-worker FIFO directory by cloning the parent's pipe layout.
+
+    Each parallel worker needs its own pair of named pipes to avoid
+    cross-worker interference on the single-stream FIFO protocol.
+    Returns the path to the new per-worker FIFO directory.
+    """
+    worker_dir = Path(tempfile.mkdtemp(
+        prefix=f"view-{fifo_type}-{view_name}-",
+        dir=Path(parent_fifo_dir).parent,
+    ))
+    if fifo_type == "permission":
+        os.mkfifo(worker_dir / "permission_request")
+        os.mkfifo(worker_dir / "permission_decision")
+    elif fifo_type == "conversation":
+        os.mkfifo(worker_dir / "conversation_response")
+        os.mkfifo(worker_dir / "conversation_decision")
+    return str(worker_dir)
 
 
 def _discover_views(repo: str) -> list[str]:
@@ -158,19 +182,29 @@ def main() -> None:
         sys.exit(0)
 
     # Phase 1: Parallel per-view queries
+    # Each worker gets its own FIFO directory to avoid cross-worker
+    # interference on the single-stream FIFO protocol.
+    worker_fifo_dirs: list[str] = []
     view_results = []
     with ThreadPoolExecutor(max_workers=len(views)) as executor:
-        futures = {
-            executor.submit(
+        futures = {}
+        for v in views:
+            perm_dir = None
+            conv_dir = None
+            if args.permission_fifo_dir:
+                perm_dir = _create_worker_fifos(args.permission_fifo_dir, v, "permission")
+                worker_fifo_dirs.append(perm_dir)
+            if args.conversation_fifo_dir:
+                conv_dir = _create_worker_fifos(args.conversation_fifo_dir, v, "conversation")
+                worker_fifo_dirs.append(conv_dir)
+            futures[executor.submit(
                 _run_view_query,
                 args.repo, v,
                 args.artifact_key, args.query,
-                args.permission_fifo_dir,
-                args.conversation_fifo_dir,
+                perm_dir,
+                conv_dir,
                 args.model,
-            ): v
-            for v in views
-        }
+            )] = v
         for future in as_completed(futures):
             view_results.append(future.result())
 
@@ -195,6 +229,8 @@ def main() -> None:
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+        for d in worker_fifo_dirs:
+            shutil.rmtree(d, ignore_errors=True)
 
     # Consolidated output
     output = {
