@@ -1,23 +1,49 @@
 #!/usr/bin/env python3
-"""Skill script: two-phase fan-out orchestration.
+"""Skill script: two-phase fan-out orchestration via ACP.
 
 Phase 1: Detect view directories, launch one query_view.py subprocess per view in parallel.
 Phase 2: Launch query_root.py for synthesis.
 Returns consolidated JSON.
 
 Usage:
-    python fan_out.py --repo /path/to/repo --model <model> --timeout 120 "query"
+    python fan_out.py --repo /path/to/repo "query"
+    python fan_out.py --repo /path/to/repo --artifact-key ak:01KJ... "query"
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
+
+
+def _create_worker_fifos(
+    parent_fifo_dir: str, view_name: str, fifo_type: str,
+) -> str:
+    """Create a per-worker FIFO directory by cloning the parent's pipe layout.
+
+    Each parallel worker needs its own pair of named pipes to avoid
+    cross-worker interference on the single-stream FIFO protocol.
+    Returns the path to the new per-worker FIFO directory.
+    """
+    worker_dir = Path(tempfile.mkdtemp(
+        prefix=f"view-{fifo_type}-{view_name}-",
+        dir=Path(parent_fifo_dir).parent,
+    ))
+    if fifo_type == "permission":
+        os.mkfifo(worker_dir / "permission_request")
+        os.mkfifo(worker_dir / "permission_decision")
+    elif fifo_type == "conversation":
+        os.mkfifo(worker_dir / "conversation_response")
+        os.mkfifo(worker_dir / "conversation_decision")
+    return str(worker_dir)
 
 
 def _discover_views(repo: str) -> list[str]:
@@ -35,9 +61,11 @@ def _discover_views(repo: str) -> list[str]:
 def _run_view_query(
     repo: str,
     view_name: str,
-    model: str,
+    artifact_key: str | None,
     query: str,
-    timeout: int,
+    permission_fifo_dir: str | None = None,
+    conversation_fifo_dir: str | None = None,
+    model: str = "claude-haiku-4-5",
 ) -> dict:
     """Run query_view.py for a single view and return parsed JSON."""
     cmd = [
@@ -45,14 +73,18 @@ def _run_view_query(
         str(SCRIPTS_DIR / "query_view.py"),
         "--repo", repo,
         "--view", view_name,
-        "--model", model,
-        "--timeout", str(timeout),
-        query,
     ]
+    if artifact_key:
+        cmd.extend(["--artifact-key", artifact_key])
+    if permission_fifo_dir:
+        cmd.extend(["--permission-fifo-dir", permission_fifo_dir])
+    if conversation_fifo_dir:
+        cmd.extend(["--conversation-fifo-dir", conversation_fifo_dir])
+    cmd.extend(["--model", model])
+    cmd.append(query)
+
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout + 30,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip():
             return json.loads(result.stdout)
         return {
@@ -62,15 +94,6 @@ def _run_view_query(
             "response": "",
             "mental_model_updated": False,
             "error": result.stderr.strip() or f"Exit code {result.returncode}",
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "view_name": view_name,
-            "mode": "view",
-            "query": query,
-            "response": "",
-            "mental_model_updated": False,
-            "error": f"Timeout after {timeout}s",
         }
     except Exception as e:
         return {
@@ -83,20 +106,34 @@ def _run_view_query(
         }
 
 
-def _run_root_query(repo: str, model: str, query: str, timeout: int) -> dict:
+def _run_root_query(
+    repo: str,
+    artifact_key: str | None,
+    query: str,
+    permission_fifo_dir: str | None = None,
+    view_responses_file: str | None = None,
+    conversation_fifo_dir: str | None = None,
+    model: str = "claude-haiku-4-5",
+) -> dict:
     """Run query_root.py and return parsed JSON."""
     cmd = [
         sys.executable,
         str(SCRIPTS_DIR / "query_root.py"),
         "--repo", repo,
-        "--model", model,
-        "--timeout", str(timeout),
-        query,
     ]
+    if artifact_key:
+        cmd.extend(["--artifact-key", artifact_key])
+    if permission_fifo_dir:
+        cmd.extend(["--permission-fifo-dir", permission_fifo_dir])
+    if view_responses_file:
+        cmd.extend(["--view-responses-file", view_responses_file])
+    if conversation_fifo_dir:
+        cmd.extend(["--conversation-fifo-dir", conversation_fifo_dir])
+    cmd.extend(["--model", model])
+    cmd.append(query)
+
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout + 30,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip():
             return json.loads(result.stdout)
         return {
@@ -106,15 +143,6 @@ def _run_root_query(repo: str, model: str, query: str, timeout: int) -> dict:
             "response": "",
             "mental_model_updated": False,
             "error": result.stderr.strip() or f"Exit code {result.returncode}",
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "view_name": "root",
-            "mode": "root",
-            "query": query,
-            "response": "",
-            "mental_model_updated": False,
-            "error": f"Timeout after {timeout}s",
         }
     except Exception as e:
         return {
@@ -128,11 +156,19 @@ def _run_root_query(repo: str, model: str, query: str, timeout: int) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Two-phase fan-out orchestration")
+    parser = argparse.ArgumentParser(description="Two-phase fan-out orchestration via ACP")
     parser.add_argument("query", help="The query to process")
     parser.add_argument("--repo", required=True, help="Path to the repository")
-    parser.add_argument("--model", required=True, help="Ollama model name")
-    parser.add_argument("--timeout", type=int, default=120, help="Per-view timeout")
+    parser.add_argument("--artifact-key", default=None,
+                        help="Parent artifact key for tracing")
+    parser.add_argument("--permission-fifo-dir", default=None,
+                        help="Directory with permission FIFOs for interactive approval. "
+                             "Launch this script as a background process and poll the FIFO asynchronously.")
+    parser.add_argument("--conversation-fifo-dir", default=None,
+                        help="Directory with conversation FIFOs for multi-turn control. "
+                             "Launch this script as a background process and poll the FIFO asynchronously.")
+    parser.add_argument("--model", default="claude-haiku-4-5",
+                        help="Model for the ACP session (default: claude-haiku-4-5)")
     args = parser.parse_args()
 
     views = _discover_views(args.repo)
@@ -146,22 +182,55 @@ def main() -> None:
         sys.exit(0)
 
     # Phase 1: Parallel per-view queries
+    # Each worker gets its own FIFO directory to avoid cross-worker
+    # interference on the single-stream FIFO protocol.
+    worker_fifo_dirs: list[str] = []
     view_results = []
     with ThreadPoolExecutor(max_workers=len(views)) as executor:
-        futures = {
-            executor.submit(
-                _run_view_query, args.repo, v, args.model, args.query, args.timeout,
-            ): v
-            for v in views
-        }
+        futures = {}
+        for v in views:
+            perm_dir = None
+            conv_dir = None
+            if args.permission_fifo_dir:
+                perm_dir = _create_worker_fifos(args.permission_fifo_dir, v, "permission")
+                worker_fifo_dirs.append(perm_dir)
+            if args.conversation_fifo_dir:
+                conv_dir = _create_worker_fifos(args.conversation_fifo_dir, v, "conversation")
+                worker_fifo_dirs.append(conv_dir)
+            futures[executor.submit(
+                _run_view_query,
+                args.repo, v,
+                args.artifact_key, args.query,
+                perm_dir,
+                conv_dir,
+                args.model,
+            )] = v
         for future in as_completed(futures):
             view_results.append(future.result())
 
     # Sort by view name for deterministic output
     view_results.sort(key=lambda r: r.get("view_name", ""))
 
-    # Phase 2: Root synthesis
-    root_result = _run_root_query(args.repo, args.model, args.query, args.timeout)
+    # Phase 2: Root synthesis — pass Phase 1 results via temp file
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", prefix="view-responses-", delete=False,
+    ) as tmp:
+        json.dump(view_results, tmp, indent=2)
+        tmp_path = tmp.name
+
+    try:
+        root_result = _run_root_query(
+            args.repo,
+            args.artifact_key, args.query,
+            args.permission_fifo_dir,
+            view_responses_file=tmp_path,
+            conversation_fifo_dir=args.conversation_fifo_dir,
+            model=args.model,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+        for d in worker_fifo_dirs:
+            shutil.rmtree(d, ignore_errors=True)
 
     # Consolidated output
     output = {
